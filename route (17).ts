@@ -67,8 +67,13 @@ export async function GET(req: Request) {
 
 const CreateSchema = z.object({
   name: z.string().min(1),
-  username: z.string().min(3),
-  email: z.string().email("Geçerli e-posta gerekli."),
+  username: z
+    .string()
+    .trim()
+    .min(3, "Kullanıcı adı en az 3 karakter olmalı.")
+    .regex(/^[A-Za-z0-9._-]+$/, "Kullanıcı adı sadece harf, rakam, nokta, tire ve alt çizgi içerebilir."),
+  // E-posta opsiyonel: boşsa kullanıcı adından dahili bir adres üretilir (doğrulama maili gönderilmez)
+  email: z.string().email("Geçerli bir e-posta girin.").optional().or(z.literal("").transform(() => undefined)),
   phone: z.string().optional(),
   password: z.string().optional(),
   roleId: z.string().uuid().optional().or(z.literal("").transform(() => undefined)),
@@ -93,7 +98,7 @@ export async function POST(req: Request) {
 
   const user = await createUserClient(); // rpc_create_user auth.uid() ister
   const { data, error } = await user.rpc("rpc_create_user", {
-    p_email: parsed.data.email,
+    p_email: parsed.data.email || `${parsed.data.username.toLowerCase()}@woltsms.local`,
     p_password: password,
     p_username: parsed.data.username,
     p_name: parsed.data.name,

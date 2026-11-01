@@ -3,7 +3,7 @@ import { getSession, hasPermissionSync } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createUserClient } from "@/lib/supabase/server";
 import { createOrder } from "@/lib/services";
-import { parseRecipients } from "@/lib/sms/segments";
+import { parseRecipients } from "@/lib/sms-segments";
 import { ok, accepted, unauthorized, forbidden, badRequest } from "@/lib/api-response";
 
 export const runtime = "nodejs";

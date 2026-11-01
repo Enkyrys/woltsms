@@ -13,4 +13,4 @@ export {
   isWithinSendingWindow,
   nextWindowStart,
   type Encoding,
-} from "./sms/segments";
+} from "./sms-segments";

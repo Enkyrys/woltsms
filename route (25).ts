@@ -61,7 +61,7 @@ export async function POST(req: Request) {
   const parsed = CreateSchema.safeParse(body);
   if (!parsed.success) return badRequest(parsed.error.errors[0]?.message || "Geçersiz istek.");
 
-  const { parseRecipients } = await import("@/lib/sms/segments");
+  const { parseRecipients } = await import("@/lib/sms-segments");
   const numbers = parseRecipients(parsed.data.numbers || "");
 
   const user = await createUserClient();

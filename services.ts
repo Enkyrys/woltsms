@@ -292,7 +292,7 @@ export async function processImportJob(payload: {
     const bytes = Buffer.from(await file.arrayBuffer());
 
     const raw = await parseColumnA(bytes, storagePath);
-    const { normalizePhone } = await import("@/lib/sms/segments");
+    const { normalizePhone } = await import("@/lib/sms-segments");
     const seen = new Set<string>();
     const valid: string[] = [];
     let invalid = 0;
