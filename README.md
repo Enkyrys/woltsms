@@ -262,3 +262,10 @@ woltsms/
 | **Onay** | Kullanıcı kendi talebini onaylayamaz; kripto talebi TXID bildirimi olmadan onaylanamaz; onay/ret/manuel kredi `audit_logs`'a yazılır. |
 | **Worker** | Eşzamanlı gönderim (varsayılan 10) + süre bütçesi (`WORKER_TIME_BUDGET_MS`); takılı `sending` mesajlar 5 dk'lık cron ile kurtarılır. |
 | **API** | Rate limit gerçekten uygulanıyor (önceden RPC cevabı boolean sanıldığı için hiç tetiklenmiyordu). |
+
+### Tip notları
+- Supabase istemcileri (`lib/supabase/*`) bilerek **tipsiz** oluşturulur. `src/db/types.ts` elle yazılmıştı ve
+  supabase-js'in beklediği `Database` biçimine (Views/Relationships) uymadığı için `rpc()` çağrıları
+  derleme hatası veriyordu. İsterseniz `supabase gen types typescript --linked > src/db/types.ts`
+  ile gerçek tipleri üretip istemcilere `<Database>` ekleyebilirsiniz.
+- Route Handler yardımcıları `Request`/`Response` kullanır (`NextRequest`/`NextResponse` değil).

@@ -437,9 +437,9 @@ export async function runWorker(): Promise<{
   const [batch, callbacks, expired, cancelled, requeued, providerBalance, imports] = await Promise.all([
     processSendBatch(Number(process.env.WORKER_BATCH_SIZE || 250)).catch(() => ({ claimed: 0, sent: 0, failed: 0, retried: 0 })),
     processCallbacks(100).catch(() => ({ delivered: 0, failed: 0 })),
-    admin.rpc("rpc_expire_topups").then((r) => (r.data as number) ?? 0).catch(() => 0),
-    admin.rpc("rpc_cancel_out_of_window").then((r) => (r.data as number) ?? 0).catch(() => 0),
-    admin.rpc("rpc_requeue_stuck", { p_minutes: 10 }).then((r) => (r.data as number) ?? 0).catch(() => 0),
+    Promise.resolve(admin.rpc("rpc_expire_topups")).then((r) => (r.data as number) ?? 0).catch(() => 0),
+    Promise.resolve(admin.rpc("rpc_cancel_out_of_window")).then((r) => (r.data as number) ?? 0).catch(() => 0),
+    Promise.resolve(admin.rpc("rpc_requeue_stuck", { p_minutes: 10 })).then((r) => (r.data as number) ?? 0).catch(() => 0),
     checkProviderBalance().catch(() => null),
     processImportJobs(3).catch(() => 0),
   ]);

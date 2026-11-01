@@ -30,8 +30,8 @@ export function corsMiddleware(req: NextRequest): NextResponse | null {
   return null; // yanıt sonra .headers ile zenginleştirilir
 }
 
-export function applyCorsHeaders(res: NextResponse, req: NextRequest): NextResponse {
-  const path = req.nextUrl.pathname;
+export function applyCorsHeaders<T extends Response>(res: T, req: Request): T {
+  const path = new URL(req.url).pathname;
   if (!path.startsWith("/api/v1")) return res;
   const origin = req.headers.get("origin") || "";
   const allowed = ALLOWED_ORIGINS.length === 0 ? false : ALLOWED_ORIGINS.includes(origin) || ALLOWED_ORIGINS.includes("*");

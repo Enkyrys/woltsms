@@ -188,12 +188,9 @@ export async function authenticateApiRequest(req: Request): Promise<ApiAuth> {
   });
   if (allowed === false) return { error: "İstek limiti aşıldı. Lütfen daha sonra tekrar deneyin.", code: 429 };
 
-  admin
-    .from("api_keys")
-    .update({ last_used_at: new Date().toISOString() })
-    .eq("id", row.id)
-    .then(() => undefined)
-    .catch(() => undefined);
+  void Promise.resolve(
+    admin.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", row.id)
+  ).catch(() => undefined);
 
   return { userId: row.user_id, apiKeyId: row.id, callbackUrl: row.callback_url, ipOk };
 }

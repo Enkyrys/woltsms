@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MockProvider } from "./mock";
-import { GatumProvider } from "./gatum";
+import { GatumProvider, type GatumConfig } from "./gatum";
 import { GenericHttpProvider, type GenericHttpConfig } from "./http";
 import type { ProviderInterface } from "./types";
 
@@ -28,7 +28,7 @@ export async function getActiveProvider(): Promise<ProviderInterface> {
         baseUrl: data.base_url,
         senderId: data.sender_id,
         credentialsEncrypted: data.credentials_encrypted,
-        config,
+        config: config as unknown as GatumConfig,
       });
     case "http":
       return GenericHttpProvider.fromEncrypted({
@@ -55,7 +55,7 @@ export async function getProviderByName(name: string): Promise<ProviderInterface
       baseUrl: data.base_url,
       senderId: data.sender_id,
       credentialsEncrypted: data.credentials_encrypted,
-      config,
+      config: config as unknown as GatumConfig,
     });
   }
   return GenericHttpProvider.fromEncrypted({

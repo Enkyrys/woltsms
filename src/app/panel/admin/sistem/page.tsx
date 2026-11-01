@@ -174,7 +174,7 @@ export default function SistemPage() {
             <h3 className="font-bold mb-2">Aktif Sağlayıcı</h3>
             <div className="flex gap-2 mb-4 flex-wrap">
               {(Object.keys(PROVIDER_META) as (keyof typeof PROVIDER_META)[]).map((k) => (
-                <button key={k} onClick={() => setKind(k)} className={`px-5 py-2 rounded-lg text-sm font-bold ${kind === k ? "tab-active" : "bg-slate-100"}`}>
+                <button key={k} onClick={() => setKind(k as "mock" | "gatum" | "http")} className={`px-5 py-2 rounded-lg text-sm font-bold ${kind === k ? "tab-active" : "bg-slate-100"}`}>
                   {PROVIDER_META[k].label}
                 </button>
               ))}

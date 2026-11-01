@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import type { Database } from "@/db/types";
 
 // Tarayıcı/istek bazlı oturum istemcisi (anon key, RLS aktif).
 // Route Handler ve Server Component'lerde kullanın.
@@ -13,7 +12,7 @@ export async function createClient() {
     throw new Error("NEXT_PUBLIC_SUPABASE_URL ve NEXT_PUBLIC_SUPABASE_ANON_KEY tanımlı olmalı.");
   }
 
-  return createServerClient<Database>(url, anonKey, {
+  return createServerClient(url, anonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

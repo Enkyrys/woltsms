@@ -44,11 +44,9 @@ export async function POST(req: Request) {
   const result = await loginWithUsername(username.trim(), password);
   if (!result.ok) {
     // başarısız denemeyi audit'a yaz
-    admin
-      .from("audit_logs")
-      .insert({ action: "auth.login_failed", ip, payload: { username } })
-      .then(() => undefined)
-      .catch(() => undefined);
+    void Promise.resolve(
+      admin.from("audit_logs").insert({ action: "auth.login_failed", ip, payload: { username } })
+    ).catch(() => undefined);
     return unauthorized(result.error);
   }
 
