@@ -80,9 +80,6 @@ async function handle(req: Request, ctx: { params: Promise<{ provider: string }>
   );
 }
 
-// Gatum yalnız GET çağırır; POST'u da destekle (diğer sağlayıcılar)
-export const POST = GET;
-
-// Gatum DLR'ı GET ile gönderir; diğer sağlayıcılar ve prompt (POST /api/v1/webhooks/dlr/{provider}) için POST da açık.
+// Gatum DLR'ı GET ile gönderir; diğer sağlayıcılar için POST da açıktır.
 export const GET = handle;
 export const POST = handle;

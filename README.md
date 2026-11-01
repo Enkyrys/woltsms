@@ -261,4 +261,4 @@ woltsms/
 | **Idempotency** | Kontrol kullanıcı kilidinden sonra; aynı anahtar + farklı istek `422`. |
 | **Onay** | Kullanıcı kendi talebini onaylayamaz; kripto talebi TXID bildirimi olmadan onaylanamaz; onay/ret/manuel kredi `audit_logs`'a yazılır. |
 | **Worker** | Eşzamanlı gönderim (varsayılan 10) + süre bütçesi (`WORKER_TIME_BUDGET_MS`); takılı `sending` mesajlar 5 dk'lık cron ile kurtarılır. |
-| **API** | Rate limit gerçekten uygulanıyor (önceden RPC cevabı boolean sanıldığı için hiç tetiklenmiyordu); DLR için `POST` eklendi. |
+| **API** | Rate limit gerçekten uygulanıyor (önceden RPC cevabı boolean sanıldığı için hiç tetiklenmiyordu). |

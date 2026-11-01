@@ -105,3 +105,7 @@ export function StatusBadge({ status }: { status: string }) {
   const v = map[status] || { t: "gray" as const, label: status };
   return <Badge tone={v.t}>{v.label}</Badge>;
 }
+
+export function Loading({ text = "Yükleniyor…" }: { text?: string }) {
+  return <div className="py-16 text-center text-[14px] text-slate-500">{text}</div>;
+}
