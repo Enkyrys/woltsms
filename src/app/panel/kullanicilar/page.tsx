@@ -3,12 +3,12 @@ import { useEffect, useState } from "react";
 import { PageTitle, Pagination, Empty } from "@/components/ui";
 
 export default function KullanicilarPage() {
-  const [rows, setRows] = useState<{ id: number; username: string; name: string; email: string; phone: string; quotaType: string; quota: string; unitPrice: string; isActive: boolean; twoFactor: boolean; createdAt: string; updatedAt: string; roleName: string; roleId: number }[]>([]);
+  const [rows, setRows] = useState<{ id: string; username: string; name: string; email: string; phone: string; quotaType: string; quota: string; unitPrice: string; isActive: boolean; twoFactor: boolean; createdAt: string; updatedAt: string; roleName: string; roleId: string }[]>([]);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
-  const [roles, setRoles] = useState<{ id: number; name: string }[]>([]);
+  const [roles, setRoles] = useState<{ id: string; name: string }[]>([]);
   const [drawer, setDrawer] = useState(false);
   const [edit, setEdit] = useState<Record<string, string | number | boolean> | null>(null);
   const [form, setForm] = useState({ name: "", username: "", quotaType: "variable", quota: "0", email: "", phone: "", password: "", roleId: "", unitPrice: "1" });
@@ -39,7 +39,7 @@ export default function KullanicilarPage() {
 
   const save = async () => {
     const url = "/api/panel/users";
-    const method = edit ? "PUT" : "POST";
+    const method = edit ? "PATCH" : "POST";
     const body = edit ? { id: edit.id, ...form, adjustAmount: adjust.amount ? Number(adjust.amount) : undefined, adjustDesc: adjust.desc } : form;
     const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await r.json();

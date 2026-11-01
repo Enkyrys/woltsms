@@ -5,7 +5,7 @@ import { PageTitle, Pagination } from "@/components/ui";
 export default function KaralistePage() {
   const [numbers, setNumbers] = useState("");
   const [q, setQ] = useState("");
-  const [rows, setRows] = useState<{ id: number; phone: string; createdAt: string }[]>([]);
+  const [rows, setRows] = useState<{ id: string; phone: string; createdAt: string }[]>([]);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
   const [total, setTotal] = useState(0);
@@ -19,7 +19,7 @@ export default function KaralistePage() {
   useEffect(() => { load(); }, []);
 
   const add = async () => {
-    const r = await fetch("/api/panel/blacklist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ numbers }) });
+    const r = await fetch("/api/panel/blacklist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "add", phones: numbers }) });
     const j = await r.json();
     alert(j.message);
     if (j.success) { setNumbers(""); load(1, perPage, q); }
@@ -27,7 +27,7 @@ export default function KaralistePage() {
   const remove = async () => {
     if (!numbers.trim()) return;
     const phones = numbers.split(/[,\n;]+/).map((s) => s.trim()).filter(Boolean);
-    const r = await fetch("/api/panel/blacklist", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phones }) });
+    const r = await fetch("/api/panel/blacklist", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "remove", phones }) });
     const j = await r.json();
     alert(j.message);
     setNumbers(""); load(1, perPage, q);
@@ -73,7 +73,7 @@ export default function KaralistePage() {
                 {rows.map((r) => (
                   <tr key={r.id} className="border-b last:border-0">
                     <td className="p-3 font-mono">{r.phone}</td>
-                    <td className="p-3 text-right"><button onClick={async () => { await fetch(`/api/panel/blacklist?id=${r.id}`, { method: "DELETE" }); load(page, perPage, q); }} className="text-red-500 text-[12px]">Sil</button></td>
+                    <td className="p-3 text-right"><button onClick={async () => { await fetch("/api/panel/blacklist", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "remove", ids: [r.id] }) }); load(page, perPage, q); }} className="text-red-500 text-[12px]">Sil</button></td>
                   </tr>
                 ))}
               </tbody>

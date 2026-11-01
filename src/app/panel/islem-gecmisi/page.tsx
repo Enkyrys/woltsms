@@ -5,7 +5,7 @@ import { PageTitle, Pagination, Empty } from "@/components/ui";
 const TYPE_TR: Record<string, string> = { topup: "Kredi Yükleme", debit: "SMS Gönderimi", refund: "İade", adjust: "Manuel Düzeltme" };
 
 export default function IslemGecmisiPage() {
-  const [rows, setRows] = useState<{ id: number; txType: string; credit: string; totalPrice: string; currency: string; unitPrice: string; balanceAfter: string; description: string; createdAt: string }[]>([]);
+  const [rows, setRows] = useState<{ id: string; txType: string; credit: string; totalPrice: string; currency: string; unitPrice: string; balanceAfter: string; description: string; createdAt: string }[]>([]);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [total, setTotal] = useState(0);

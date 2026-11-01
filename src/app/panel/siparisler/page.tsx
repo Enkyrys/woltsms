@@ -3,12 +3,12 @@ import { useEffect, useState } from "react";
 import { PageTitle, Pagination, StatusBadge, Empty, Modal } from "@/components/ui";
 
 export default function SiparislerPage() {
-  const [rows, setRows] = useState<{ id: number; status: string; totalCount: number; processedCount: number; username: string; scheduledAt: string; createdAt: string; message: string; note: string }[]>([]);
+  const [rows, setRows] = useState<{ id: string; status: string; totalCount: number; processedCount: number; username: string; scheduledAt: string; createdAt: string; message: string; note: string }[]>([]);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState("");
-  const [detail, setDetail] = useState<{ order: Record<string, string | number>; messages: { id: number; recipient: string; status: string; segments: number; cost: string }[] } | null>(null);
+  const [detail, setDetail] = useState<{ order: Record<string, string | number>; messages: { id: string; recipient: string; status: string; segments: number; cost: string }[] } | null>(null);
   const [showFilter, setShowFilter] = useState(false);
 
   const load = (p = page, pp = perPage, st = status) => {
@@ -19,7 +19,7 @@ export default function SiparislerPage() {
   };
   useEffect(() => { load(1, 10, ""); }, []);
 
-  const open = async (id: number) => {
+  const open = async (id: string) => {
     const r = await fetch(`/api/panel/orders?id=${id}&perPage=50`);
     const j = await r.json();
     if (j.success) setDetail(j.data);

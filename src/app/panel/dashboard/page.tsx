@@ -25,14 +25,14 @@ function calcSeg(msg: string) {
 }
 
 export default function DashboardPage() {
-  const [lists, setLists] = useState<{ id: number; title: string; count: number }[]>([]);
+  const [lists, setLists] = useState<{ id: string; title: string; count: number }[]>([]);
   const [listId, setListId] = useState("");
   const [numbers, setNumbers] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
-  const [history, setHistory] = useState<{ id: number; body: string }[]>([]);
+  const [history, setHistory] = useState<{ id: string; body: string }[]>([]);
   const [message, setMessage] = useState("");
   const [balance, setBalance] = useState("0");
-  const [recent, setRecent] = useState<{ id: number; status: string; totalCount: number; processedCount: number; createdAt: string }[]>([]);
+  const [recent, setRecent] = useState<{ id: string; status: string; totalCount: number; processedCount: number; createdAt: string }[]>([]);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState("");
   const [showShort, setShowShort] = useState(false);
@@ -79,21 +79,21 @@ export default function DashboardPage() {
     const r = await fetch("/api/panel/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Idempotency-Key": "order-" + Date.now() },
-      body: JSON.stringify({ message, numbers, listId: listId ? Number(listId) : undefined, scheduledAt: scheduledAt || undefined }),
+      body: JSON.stringify({ message, numbers, contactListId: listId || undefined, scheduleAt: scheduledAt || undefined }),
     });
     const j = await r.json();
     setSending(false);
-    setResult(j.success ? `✓ ${j.message} (Sipariş #${j.data.orderId}, ${j.data.total} numara, ${j.data.segments} segment, ₺${j.data.totalCost})` : `✕ ${j.message}`);
+    setResult(j.success ? `✓ ${j.message} (Sipariş #${j.data.orderId}, ${j.data.totalCount} numara, ${j.data.segments} segment, ₺${j.data.totalCost})` : `✗ ${j.message}`);
     if (j.success) {
       setMessage(""); setNumbers(""); setListId(""); setScheduledAt("");
-      fetch("/api/panel/transactions?action=balance").then(async (r2) => { if (r2.ok) { const jj = await r2.json(); setBalance(jj.data.balance); } });
+      fetch("/api/panel/balance").then(async (r2) => { if (r2.ok) { const jj = await r2.json(); setBalance(jj.data.balance); } });
       fetch("/api/panel/orders?perPage=5").then(async (r2) => { if (r2.ok) { const jj = await r2.json(); setRecent(jj.data); } });
     }
   };
 
   const createShort = async () => {
     if (!shortUrl) return;
-    const r = await fetch("/api/panel/shorturls", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: shortUrl, businessName: shortBiz }) });
+    const r = await fetch("/api/panel/shorturls", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ originalUrl: shortUrl, businessName: shortBiz }) });
     const j = await r.json();
     if (j.success) {
       setMessage((m) => (m ? m + " " : "") + j.data.shortUrl);

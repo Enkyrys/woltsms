@@ -35,15 +35,15 @@ export default function LoginPage() {
           <button disabled={loading} className="btn-primary w-full py-3 mt-2">{loading ? "Giriş yapılıyor..." : "Giriş Yap"}</button>
         </form>
         <div className="mt-5 text-[12px] text-slate-500 bg-slate-50 rounded-lg p-3">
-          <div className="font-bold mb-1">Demo Hesaplar (seed sonrası):</div>
+          <div className="font-bold mb-1">Demo Hesaplar (seed.sql sonrası):</div>
           <div>Admin: <b>admin</b> / Admin123!</div>
           <div>Bayi: <b>demo</b> / Demo123!</div>
-          <button
-            className="mt-2 text-[#0FB5A0] font-semibold"
-            onClick={async () => { const r = await fetch("/api/seed", { method: "POST" }); const j = await r.json(); alert(j.message); }}
-          >
-            → Örnek verileri yükle (Seed)
-          </button>
+          <div className="mt-2 leading-relaxed">
+            Veriler <code>supabase/seed.sql</code> ile yüklenir:
+            <code className="block mt-1">supabase db reset</code>
+            İlk admin'i ayrıca <code>BOOTSTRAP_TOKEN</code> ile
+            <code> POST /api/seed/first-admin</code> üzerinden de oluşturabilirsiniz.
+          </div>
         </div>
       </div>
     </div>

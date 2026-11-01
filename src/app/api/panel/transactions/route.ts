@@ -1,25 +1,58 @@
-import { NextResponse } from "next/server";
-import { pool } from "@/db";
 import { getSession } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { ok, unauthorized } from "@/lib/api-response";
 
+export const runtime = "nodejs";
+
+// İşlem geçmişi (cüzdan hareketleri) — ?action=balance dashboard'un beklediği bakiye özetini döner
 export async function GET(req: Request) {
   const s = await getSession();
-  if (!s) return NextResponse.json({ success: false, code: 401, message: "Oturum gerekli." }, { status: 401 });
+  if (!s) return unauthorized();
+  const admin = createAdminClient();
   const url = new URL(req.url);
+
   if (url.searchParams.get("action") === "balance") {
-    const r = await pool.query(`SELECT quota FROM users WHERE id=$1`, [s.id]);
-    return NextResponse.json({ success: true, code: 200, message: "OK", data: { balance: r.rows[0]?.quota ?? "0" } });
+    const { data } = await admin
+      .from("wallets")
+      .select("balance, reserved")
+      .eq("user_id", s.id)
+      .maybeSingle();
+    const balance = String(data?.balance ?? "0");
+    const reserved = String(data?.reserved ?? "0");
+    return ok({
+      balance,
+      reserved,
+      available: String(Number(balance) - Number(reserved)),
+      unitPrice: s.unitPrice,
+      currency: "TRY",
+    });
   }
+
   const page = Math.max(1, Number(url.searchParams.get("page") || 1));
-  const perPage = Math.min(100, Number(url.searchParams.get("perPage") || 10));
-  const type = url.searchParams.get("type") || "";
-  const where = `${s.isAdmin && url.searchParams.get("all") === "1" ? "1=1" : `w.user_id=${s.id}`}${type ? ` AND w.type='${type.replace(/'/g, "")}'` : ""}`;
-  const total = Number((await pool.query(`SELECT COUNT(*) c FROM wallet_transactions w WHERE ${where}`)).rows[0].c);
-  const rows = (
-    await pool.query(
-      `SELECT w.id, w.type as "txType", w.credit, w.total_price as "totalPrice", w.currency as "currency", w.unit_price as "unitPrice", w.balance_after as "balanceAfter", w.description, w.ref_type as "refType", w.ref_id as "refId", w.created_at as "createdAt", u.username FROM wallet_transactions w LEFT JOIN users u ON u.id=w.user_id WHERE ${where} ORDER BY w.created_at DESC LIMIT $1 OFFSET $2`,
-      [perPage, (page - 1) * perPage]
-    )
-  ).rows;
-  return NextResponse.json({ success: true, code: 200, message: "OK", data: rows, meta: { total, page, perPage, totalPages: Math.max(1, Math.ceil(total / perPage)) } });
+  const perPage = Math.min(100, Number(url.searchParams.get("perPage") || 20));
+  const type = url.searchParams.get("type");
+
+  let q = admin.from("wallet_transactions").select("*", { count: "exact" }).eq("user_id", s.id);
+  if (type) q = q.eq("type", type);
+  const { count, data } = await q
+    .order("created_at", { ascending: false })
+    .range((page - 1) * perPage, page * perPage - 1);
+
+  return ok(
+    (data ?? []).map((t) => ({
+      id: t.id,
+      txType: t.type,
+      credit: t.credit,
+      totalPrice: t.total_price,
+      currency: t.currency,
+      unitPrice: t.unit_price,
+      balanceAfter: t.balance_after,
+      description: t.description,
+      refType: t.ref_type,
+      refId: t.ref_id,
+      createdAt: t.created_at,
+    })),
+    "OK",
+    { total: count ?? 0, page, perPage }
+  );
 }

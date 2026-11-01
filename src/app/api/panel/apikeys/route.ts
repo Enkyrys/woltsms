@@ -1,60 +1,122 @@
-import { NextResponse } from "next/server";
-import { db, pool } from "@/db";
-import { apiKeys } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { z } from "zod";
 import { getSession } from "@/lib/auth";
-import { randomToken, sha256 } from "@/lib/security";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { generateApiKey } from "@/lib/security";
+import { ok, unauthorized, badRequest, notFound } from "@/lib/api-response";
 
+export const runtime = "nodejs";
+
+// GET: kullanıcının anahtarları (hash asla dönmez)
 export async function GET() {
   const s = await getSession();
-  if (!s) return NextResponse.json({ success: false, code: 401, message: "Oturum gerekli." }, { status: 401 });
-  const rows = await db.select().from(apiKeys).where(eq(apiKeys.userId, s.id));
-  return NextResponse.json({
-    success: true, code: 200, message: "OK",
-    data: rows.map((r) => ({ id: r.id, name: r.name, keyPrefix: r.keyPrefix, status: r.status, ipWhitelist: r.ipWhitelist, callbackUrl: r.callbackUrl, lastUsedAt: r.lastUsedAt, createdAt: r.createdAt })),
-  });
+  if (!s) return unauthorized();
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("api_keys")
+    .select("id, name, key_prefix, status, ip_whitelist, callback_url, last_used_at, created_at")
+    .eq("user_id", s.id)
+    .order("created_at", { ascending: false });
+
+  return ok(
+    (data ?? []).map((k) => ({
+      id: k.id,
+      name: k.name,
+      keyPrefix: k.key_prefix,
+      status: k.status,
+      ipWhitelist: Array.isArray(k.ip_whitelist) ? (k.ip_whitelist as string[]).join(", ") : "",
+      callbackUrl: k.callback_url ?? "",
+      lastUsedAt: k.last_used_at,
+      createdAt: k.created_at,
+    }))
+  );
 }
 
+const CreateSchema = z.object({
+  name: z.string().optional(),
+  ipWhitelist: z.string().optional(),
+  callbackUrl: z.string().url().optional().or(z.literal("").transform(() => undefined)),
+});
+
+// POST: anahtar üret (bir kez gösterilir)
 export async function POST(req: Request) {
   const s = await getSession();
-  if (!s) return NextResponse.json({ success: false, code: 401, message: "Oturum gerekli." }, { status: 401 });
-  const b = await req.json().catch(() => ({}));
-  const name = String(b.name || "Varsayılan");
-  const rawKey = "wolt_" + randomToken(16);
-  const rawSecret = randomToken(24);
-  const ins = await db.insert(apiKeys).values({
-    userId: s.id,
-    name,
-    keyPrefix: rawKey.slice(0, 8),
-    keyHash: sha256(rawKey),
-    secretHash: sha256(rawSecret),
-    ipWhitelist: b.ipWhitelist ? JSON.stringify(String(b.ipWhitelist).split(/[,\n]+/).map((x: string) => x.trim()).filter(Boolean)) : null,
-    callbackUrl: b.callbackUrl ? String(b.callbackUrl) : null,
-    status: "active",
-  }).returning();
-  // secret yalnızca bir kez gösterilir
-  return NextResponse.json({ success: true, code: 200, message: "API anahtarı oluşturuldu. Secret'ı güvenli saklayın, tekrar gösterilmeyecek.", data: { id: ins[0].id, apiKey: rawKey, apiSecret: rawSecret, secretHash: sha256(rawSecret) } });
+  if (!s) return unauthorized();
+
+  const body = await req.json().catch(() => ({}));
+  const parsed = CreateSchema.safeParse(body);
+  if (!parsed.success) return badRequest("Geçersiz istek.");
+
+  const { key, prefix, hash } = generateApiKey();
+  const ips = (parsed.data.ipWhitelist || "")
+    .split(/[\n,]/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("api_keys")
+    .insert({
+      user_id: s.id,
+      name: parsed.data.name || "API Anahtarı",
+      key_prefix: prefix,
+      key_hash: hash,
+      ip_whitelist: ips,
+      callback_url: parsed.data.callbackUrl || null,
+    })
+    .select("id, name, key_prefix, created_at")
+    .single();
+
+  if (error) return badRequest(error.message);
+  return ok(
+    {
+      id: data.id,
+      name: data.name,
+      keyPrefix: data.key_prefix,
+      key, // YALNIZCA BURADA, BİR KEZ
+      createdAt: data.created_at,
+    },
+    "API anahtarı oluşturuldu. Bu anahtar yalnızca bir kez gösterilir."
+  );
 }
 
-export async function PUT(req: Request) {
+const UpdateSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().optional(),
+  ipWhitelist: z.string().optional(),
+  callbackUrl: z.string().optional(),
+  status: z.enum(["active", "disabled"]).optional(),
+});
+
+export async function PATCH(req: Request) {
   const s = await getSession();
-  if (!s) return NextResponse.json({ success: false, code: 401, message: "Oturum gerekli." }, { status: 401 });
-  const b = await req.json();
-  if (!b.id) return NextResponse.json({ success: false, code: 400, message: "ID gerekli." }, { status: 400 });
-  await db.update(apiKeys).set({
-    name: b.name ? String(b.name) : undefined,
-    ipWhitelist: b.ipWhitelist !== undefined ? (b.ipWhitelist ? JSON.stringify(String(b.ipWhitelist).split(/[,\n]+/).map((x: string) => x.trim()).filter(Boolean)) : null) : undefined,
-    callbackUrl: b.callbackUrl !== undefined ? (b.callbackUrl ? String(b.callbackUrl) : null) : undefined,
-    status: b.status ? String(b.status) : undefined,
-  }).where(and(eq(apiKeys.id, Number(b.id)), eq(apiKeys.userId, s.id)));
-  return NextResponse.json({ success: true, code: 200, message: "Güncellendi." });
+  if (!s) return unauthorized();
+  const body = await req.json().catch(() => ({}));
+  const parsed = UpdateSchema.safeParse(body);
+  if (!parsed.success) return badRequest("Geçersiz istek.");
+
+  const ips = parsed.data.ipWhitelist !== undefined
+    ? parsed.data.ipWhitelist.split(/[\n,]/).map((x) => x.trim()).filter(Boolean)
+    : undefined;
+
+  const admin = createAdminClient();
+  const update: Record<string, unknown> = {};
+  if (parsed.data.name !== undefined) update.name = parsed.data.name;
+  if (ips !== undefined) update.ip_whitelist = ips;
+  if (parsed.data.callbackUrl !== undefined) update.callback_url = parsed.data.callbackUrl || null;
+  if (parsed.data.status !== undefined) update.status = parsed.data.status;
+
+  const { error } = await admin.from("api_keys").update(update).eq("id", parsed.data.id).eq("user_id", s.id);
+  if (error) return badRequest(error.message);
+  return ok({ updated: true }, "Güncellendi.");
 }
 
 export async function DELETE(req: Request) {
   const s = await getSession();
-  if (!s) return NextResponse.json({ success: false, code: 401, message: "Oturum gerekli." }, { status: 401 });
-  const url = new URL(req.url);
-  const id = Number(url.searchParams.get("id"));
-  await db.update(apiKeys).set({ status: "revoked" }).where(and(eq(apiKeys.id, id), eq(apiKeys.userId, s.id)));
-  return NextResponse.json({ success: true, code: 200, message: "Anahtar iptal edildi." });
+  if (!s) return unauthorized();
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return badRequest("id gerekli.");
+  const admin = createAdminClient();
+  const { error } = await admin.from("api_keys").delete().eq("id", id).eq("user_id", s.id);
+  if (error) return badRequest(error.message);
+  return ok({ deleted: true }, "Silindi.");
 }

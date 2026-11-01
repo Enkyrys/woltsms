@@ -3,14 +3,14 @@ import { useEffect, useState } from "react";
 import { PageTitle, Pagination, StatusBadge, Empty, Modal, Field } from "@/components/ui";
 
 export default function DestekPage() {
-  const [rows, setRows] = useState<{ id: number; status: string; subject: string; lastMessage: string; createdAt: string; updatedAt: string; username: string }[]>([]);
+  const [rows, setRows] = useState<{ id: string; status: string; subject: string; lastMessage: string; createdAt: string; updatedAt: string; username: string }[]>([]);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [total, setTotal] = useState(0);
   const [show, setShow] = useState(false);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
-  const [detail, setDetail] = useState<{ ticket: { id: number; status: string; subject: string }; messages: { id: number; userId: number; message: string; createdAt: string }[] } | null>(null);
+  const [detail, setDetail] = useState<{ ticket: { id: string; status: string; subject: string }; messages: { id: string; userId: string; message: string; createdAt: string }[] } | null>(null);
   const [reply, setReply] = useState("");
 
   const load = (p = 1, pp = perPage) => {
@@ -21,7 +21,7 @@ export default function DestekPage() {
   };
   useEffect(() => { load(); }, []);
 
-  const open = async (id: number) => {
+  const open = async (id: string) => {
     const r = await fetch(`/api/panel/support?id=${id}`);
     const j = await r.json();
     if (j.success) setDetail(j.data);

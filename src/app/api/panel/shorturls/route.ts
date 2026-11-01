@@ -1,46 +1,80 @@
-import { NextResponse } from "next/server";
-import { db, pool } from "@/db";
-import { shortUrls } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
+import { z } from "zod";
+import { getSession, hasPermissionSync } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient as createUserClient } from "@/lib/supabase/server";
 import { generateSlug } from "@/lib/security";
+import { ok, unauthorized, forbidden, badRequest } from "@/lib/api-response";
+
+export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   const s = await getSession();
-  if (!s) return NextResponse.json({ success: false, code: 401, message: "Oturum gerekli." }, { status: 401 });
-  const url = new URL(req.url);
-  const page = Math.max(1, Number(url.searchParams.get("page") || 1));
-  const perPage = Math.min(100, Number(url.searchParams.get("perPage") || 10));
-  const where = s.isAdmin ? "1=1" : `s.user_id=${s.id}`;
-  const total = Number((await pool.query(`SELECT COUNT(*) c FROM short_urls s WHERE ${where}`)).rows[0].c);
-  const rows = (
-    await pool.query(
-      `SELECT s.id, s.business_name as "businessName", s.original_url as "originalUrl", s.slug, s.clicks, s.created_at as "createdAt", u.username FROM short_urls s LEFT JOIN users u ON u.id=s.user_id WHERE ${where} ORDER BY s.id DESC LIMIT $1 OFFSET $2`,
-      [perPage, (page - 1) * perPage]
-    )
-  ).rows;
-  const base = process.env.NEXT_PUBLIC_BASE_URL || "";
-  return NextResponse.json({ success: true, code: 200, message: "OK", data: rows.map((r) => ({ ...r, shortUrl: `${base}/s/${r.slug}` })), meta: { total, page, perPage, totalPages: Math.max(1, Math.ceil(total / perPage)) } });
+  if (!s) return unauthorized();
+  const admin = createAdminClient();
+  const page = Math.max(1, Number(new URL(req.url).searchParams.get("page") || 1));
+  const perPage = Math.min(100, Number(new URL(req.url).searchParams.get("perPage") || 10));
+
+  let q = admin.from("short_urls").select("*", { count: "exact" });
+  if (!s.isAdmin) q = q.eq("user_id", s.id);
+  const { count, data } = await q
+    .order("created_at", { ascending: false })
+    .range((page - 1) * perPage, page * perPage - 1);
+
+  return ok(
+    (data ?? []).map((u) => ({
+      id: u.id,
+      businessName: u.business_name,
+      originalUrl: u.original_url,
+      slug: u.slug,
+      shortUrl: `${process.env.APP_URL || ""}/s/${u.slug}`,
+      clicks: u.clicks,
+      createdAt: u.created_at,
+    })),
+    "OK",
+    { total: count ?? 0, page, perPage }
+  );
 }
+
+const CreateSchema = z.object({
+  originalUrl: z.string().url("Geçerli bir URL girin."),
+  businessName: z.string().optional(),
+  slug: z.string().min(3).max(20).regex(/^[a-z0-9-]+$/, "Slug yalnızca küçük harf, rakam ve tire içerebilir.").optional(),
+});
 
 export async function POST(req: Request) {
   const s = await getSession();
-  if (!s) return NextResponse.json({ success: false, code: 401, message: "Oturum gerekli." }, { status: 401 });
-  const b = await req.json();
-  const original = String(b.url || b.originalUrl || "").trim();
-  if (!original || !/^https?:\/\//i.test(original)) return NextResponse.json({ success: false, code: 400, message: "Geçerli bir URL girin (https://...)." }, { status: 400 });
-  const slug = generateSlug(7);
-  const ins = await db.insert(shortUrls).values({ userId: s.id, businessName: b.businessName ? String(b.businessName) : null, originalUrl: original, slug }).returning();
-  const base = process.env.NEXT_PUBLIC_BASE_URL || "";
-  return NextResponse.json({ success: true, code: 200, message: "Kısa URL oluşturuldu.", data: { ...ins[0], shortUrl: `${base}/s/${slug}` } });
+  if (!s) return unauthorized();
+  if (!hasPermissionSync(s, "shorturl.manage")) return forbidden();
+
+  const body = await req.json().catch(() => ({}));
+  const parsed = CreateSchema.safeParse(body);
+  if (!parsed.success) return badRequest(parsed.error.errors[0]?.message || "Geçersiz istek.");
+
+  const slug = parsed.data.slug || generateSlug();
+  const user = await createUserClient();
+  const { data, error } = await user.rpc("rpc_create_short_url", {
+    p_original_url: parsed.data.originalUrl,
+    p_business_name: parsed.data.businessName || "",
+    p_slug: slug,
+  });
+  if (error) {
+    if (error.message.includes("duplicate")) return badRequest("Bu slug zaten kullanılıyor.");
+    return badRequest(error.message);
+  }
+  return ok(
+    { id: (data as { id: string }).id, slug, shortUrl: `${process.env.APP_URL || ""}/s/${slug}` },
+    "Kısa URL oluşturuldu."
+  );
 }
 
 export async function DELETE(req: Request) {
   const s = await getSession();
-  if (!s) return NextResponse.json({ success: false, code: 401, message: "Oturum gerekli." }, { status: 401 });
-  const url = new URL(req.url);
-  const id = Number(url.searchParams.get("id"));
-  if (s.isAdmin) await db.delete(shortUrls).where(eq(shortUrls.id, id));
-  else await db.delete(shortUrls).where(and(eq(shortUrls.id, id), eq(shortUrls.userId, s.id)));
-  return NextResponse.json({ success: true, code: 200, message: "Silindi." });
+  if (!s) return unauthorized();
+  if (!hasPermissionSync(s, "shorturl.manage")) return forbidden();
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return badRequest("id gerekli.");
+  const user = await createUserClient();
+  const { error } = await user.rpc("rpc_delete_short_url", { p_id: id });
+  if (error) return badRequest(error.message);
+  return ok({ deleted: true }, "Silindi.");
 }

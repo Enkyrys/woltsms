@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 import { PageTitle, StatusBadge, Modal, Field, CopyBtn } from "@/components/ui";
 
 export default function ApiKeysPage() {
-  const [rows, setRows] = useState<{ id: number; name: string; keyPrefix: string; status: string; ipWhitelist: string; callbackUrl: string; createdAt: string }[]>([]);
+  const [rows, setRows] = useState<{ id: string; name: string; keyPrefix: string; status: string; ipWhitelist: string; callbackUrl: string; createdAt: string }[]>([]);
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({ name: "Web Sitem", ipWhitelist: "", callbackUrl: "" });
   const [created, setCreated] = useState<{ apiKey: string; apiSecret: string } | null>(null);
-  const [edit, setEdit] = useState<{ id: number; name: string; ipWhitelist: string; callbackUrl: string } | null>(null);
+  const [edit, setEdit] = useState<{ id: string; name: string; ipWhitelist: string; callbackUrl: string } | null>(null);
 
   const load = () => {
     fetch("/api/panel/apikeys").then(async (r) => { const j = await r.json(); if (j.success) setRows(j.data); });
@@ -23,7 +23,7 @@ export default function ApiKeysPage() {
 
   const saveEdit = async () => {
     if (!edit) return;
-    await fetch("/api/panel/apikeys", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(edit) });
+    await fetch("/api/panel/apikeys", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(edit) });
     setEdit(null); load();
   };
 
@@ -43,7 +43,7 @@ export default function ApiKeysPage() {
                 <td className="text-[12px] max-w-[200px] truncate">{r.callbackUrl || "-"}</td>
                 <td className="text-[12px]">{new Date(r.createdAt).toLocaleString("tr-TR")}</td>
                 <td className="flex gap-2">
-                  <button onClick={() => setEdit({ id: r.id, name: r.name, ipWhitelist: r.ipWhitelist ? JSON.parse(r.ipWhitelist).join(", ") : "", callbackUrl: r.callbackUrl || "" })} className="text-[#0FB5A0] text-[12px] font-bold">Düzenle</button>
+                  <button onClick={() => setEdit({ id: r.id, name: r.name, ipWhitelist: r.ipWhitelist || "", callbackUrl: r.callbackUrl || "" })} className="text-[#0FB5A0] text-[12px] font-bold">Düzenle</button>
                   <button onClick={async () => { if (confirm("İptal edilsin mi?")) { await fetch(`/api/panel/apikeys?id=${r.id}`, { method: "DELETE" }); load(); } }} className="text-red-500 text-[12px]">İptal</button>
                 </td>
               </tr>

@@ -4,10 +4,11 @@ import { PageTitle, Pagination, StatusBadge, Empty, Modal, Field } from "@/compo
 
 export default function KrediTalepleriPage() {
   const [rows, setRows] = useState<{
-    id: number; reference_code: string; method: string; amount_try: string; asset: string; network: string;
+    id: string; reference_code: string; method: string; amount_try: string; asset: string; network: string;
     status: string; created_at: string; updated_at: string; username: string; sender_name: string; note: string;
     receipt_path: string; txid: string; sentAmount: string; fromAddress: string; userNote: string; rateApplied: string;
     explorerTemplate: string; wallet_address_snapshot: string; currentWallet: string; credited_amount_try: string;
+    receiptUrl?: string;
   }[]>([]);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
@@ -33,14 +34,14 @@ export default function KrediTalepleriPage() {
   const approve = async () => {
     if (!detail) return;
     if (!confirm(`${creditAmt} TL onaylansın mı? Tek seferlik işlem.`)) return;
-    const r = await fetch("/api/panel/admin/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: detail.id, action: "approve", creditedAmountTry: Number(creditAmt), adminNote }) });
+    const r = await fetch("/api/panel/admin/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topupId: detail.id, action: "approve", creditAmount: Number(creditAmt), adminNote }) });
     const j = await r.json();
     alert(j.message);
     if (j.success) { setDetail(null); load(page, perPage); }
   };
   const reject = async () => {
     if (!detail || !rejectReason) { alert("Gerekçe zorunlu."); return; }
-    const r = await fetch("/api/panel/admin/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: detail.id, action: "reject", reason: rejectReason }) });
+    const r = await fetch("/api/panel/admin/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topupId: detail.id, action: "reject", reason: rejectReason }) });
     const j = await r.json();
     alert(j.message);
     if (j.success) { setDetail(null); load(page, perPage); }
@@ -94,8 +95,8 @@ export default function KrediTalepleriPage() {
                 <div className="break-all"><b>Güncel cüzdan:</b> <span className="font-mono text-[11px]">{detail.currentWallet}</span></div>
                 {explorerUrl(detail) && <a href={explorerUrl(detail)!} target="_blank" className="btn-outline inline-block px-3 py-1.5 text-[12px]">Explorer&apos;da Aç ↗</a>}
               </>)}
-              {detail.receipt_path && detail.receipt_path.startsWith("data:image") && <img src={detail.receipt_path} alt="dekont" className="max-h-64 border rounded-lg mt-2" />}
-              {detail.receipt_path && detail.receipt_path.startsWith("data:application/pdf") && <a href={detail.receipt_path} target="_blank" className="text-[#0FB5A0] font-bold">PDF Dekontu Aç ↗</a>}
+              {detail.receiptUrl && detail.receipt_path?.toLowerCase().match(/\.(png|jpe?g|webp)$/) && <img src={detail.receiptUrl} alt="dekont" className="max-h-64 border rounded-lg mt-2" />}
+              {detail.receiptUrl && detail.receipt_path?.toLowerCase().endsWith(".pdf") && <a href={detail.receiptUrl} target="_blank" rel="noreferrer" className="text-[#0FB5A0] font-bold">PDF Dekontu Aç ↗</a>}
             </div>
             <div>
               {(detail.status === "pending" || detail.status === "reported") ? (

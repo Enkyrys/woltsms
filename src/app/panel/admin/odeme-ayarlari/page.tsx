@@ -4,34 +4,34 @@ import { PageTitle, Card, Modal, Field } from "@/components/ui";
 
 export default function OdemeAyarlariPage() {
   const [settings, setSettings] = useState({ minTopupTry: "100", maxTopupTry: "500000", requestTtlMinutes: 1440, bankNote: "", maxOpenRequests: 3 });
-  const [banks, setBanks] = useState<{ id: number; bankName: string; accountHolder: string; iban: string; isActive: boolean; sortOrder: number }[]>([]);
-  const [crypto, setCrypto] = useState<{ id: number; asset: string; network: string; walletAddress: string; memoTag: string; explorerTxUrlTemplate: string; rateTry: string; minAmountTry: string; isActive: boolean; sortOrder: number; updatedAt: string }[]>([]);
-  const [bankForm, setBankForm] = useState<{ id?: number; bankName: string; accountHolder: string; iban: string; isActive: boolean; sortOrder: number } | null>(null);
-  const [cryptoForm, setCryptoForm] = useState<{ id?: number; asset: string; network: string; walletAddress: string; memoTag: string; explorerTxUrlTemplate: string; rateTry: string; minAmountTry: string; isActive: boolean; sortOrder: number } | null>(null);
+  const [banks, setBanks] = useState<{ id: string; bankName: string; accountHolder: string; iban: string; isActive: boolean; sortOrder: number }[]>([]);
+  const [crypto, setCrypto] = useState<{ id: string; asset: string; network: string; walletAddress: string; memoTag: string; explorerTxUrlTemplate: string; rateTry: string; minAmountTry: string; isActive: boolean; sortOrder: number; rateUpdatedAt: string }[]>([]);
+  const [bankForm, setBankForm] = useState<{ id?: string; bankName: string; accountHolder: string; iban: string; isActive: boolean; sortOrder: number } | null>(null);
+  const [cryptoForm, setCryptoForm] = useState<{ id?: string; asset: string; network: string; walletAddress: string; memoTag: string; explorerTxUrlTemplate: string; rateTry: string; minAmountTry: string; isActive: boolean; sortOrder: number } | null>(null);
 
   const load = () => {
     fetch("/api/panel/admin/settings?scope=payment").then(async (r) => {
       const j = await r.json();
       if (j.success) {
         if (j.data.settings) setSettings({ minTopupTry: j.data.settings.minTopupTry, maxTopupTry: j.data.settings.maxTopupTry, requestTtlMinutes: j.data.settings.requestTtlMinutes, bankNote: j.data.settings.bankNote || "", maxOpenRequests: j.data.settings.maxOpenRequests });
-        setBanks(j.data.banks); setCrypto(j.data.crypto);
+        setBanks(j.data.banks); setCrypto(j.data.assets ?? []);
       }
     });
   };
   useEffect(() => { load(); }, []);
 
   const saveSettings = async () => {
-    const r = await fetch("/api/panel/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: "payment-settings", ...settings }) });
+    const r = await fetch("/api/panel/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save-payment", ...settings }) });
     alert((await r.json()).message);
   };
   const saveBank = async () => {
     if (!bankForm) return;
-    const r = await fetch("/api/panel/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: "bank", ...bankForm }) });
+    const r = await fetch("/api/panel/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "bank-upsert", ...bankForm }) });
     alert((await r.json()).message); setBankForm(null); load();
   };
   const saveCrypto = async () => {
     if (!cryptoForm) return;
-    const r = await fetch("/api/panel/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: "crypto", ...cryptoForm }) });
+    const r = await fetch("/api/panel/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "crypto-upsert", ...cryptoForm }) });
     alert((await r.json()).message); setCryptoForm(null); load();
   };
 
@@ -62,7 +62,7 @@ export default function OdemeAyarlariPage() {
               <tr key={b.id} className="table-row">
                 <td className="font-semibold">{b.bankName}</td><td>{b.accountHolder}</td><td className="font-mono text-[12px]">{b.iban}</td>
                 <td>{b.isActive ? "✓" : "✕"}</td><td>{b.sortOrder}</td>
-                <td className="flex gap-2"><button onClick={() => setBankForm(b)} className="text-[#0FB5A0] text-[12px] font-bold">Düzenle</button><button onClick={async () => { if (confirm("Silinsin mi?")) { await fetch("/api/panel/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: "bank-delete", id: b.id }) }); load(); } }} className="text-red-500 text-[12px]">Sil</button></td>
+                <td className="flex gap-2"><button onClick={() => setBankForm(b)} className="text-[#0FB5A0] text-[12px] font-bold">Düzenle</button><button onClick={async () => { if (confirm("Silinsin mi?")) { await fetch("/api/panel/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "bank-delete", id: b.id }) }); load(); } }} className="text-red-500 text-[12px]">Sil</button></td>
               </tr>
             ))}
           </tbody>
@@ -81,8 +81,8 @@ export default function OdemeAyarlariPage() {
               <tr key={c.id} className="table-row">
                 <td className="font-bold">{c.asset}</td><td>{c.network}</td><td className="font-mono text-[11px] max-w-[220px] truncate">{c.walletAddress}</td>
                 <td>{c.rateTry}</td><td>{c.minAmountTry}</td><td>{c.isActive ? "✓" : "✕"}</td>
-                <td className="text-[11px]">{c.updatedAt ? new Date(c.updatedAt).toLocaleString("tr-TR") : "-"}</td>
-                <td className="flex gap-2"><button onClick={() => setCryptoForm(c)} className="text-[#0FB5A0] text-[12px] font-bold">Düzenle</button><button onClick={async () => { if (confirm("Silinsin mi?")) { await fetch("/api/panel/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: "crypto-delete", id: c.id }) }); load(); } }} className="text-red-500 text-[12px]">Sil</button></td>
+                <td className="text-[11px]">{c.rateUpdatedAt ? new Date(c.rateUpdatedAt).toLocaleString("tr-TR") : "-"}</td>
+                <td className="flex gap-2"><button onClick={() => setCryptoForm(c)} className="text-[#0FB5A0] text-[12px] font-bold">Düzenle</button><button onClick={async () => { if (confirm("Silinsin mi?")) { await fetch("/api/panel/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "crypto-delete", id: c.id }) }); load(); } }} className="text-red-500 text-[12px]">Sil</button></td>
               </tr>
             ))}
           </tbody>

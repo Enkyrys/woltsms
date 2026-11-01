@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server";
-import { db, pool } from "@/db";
-import { shortUrls } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function GET(_: Request, ctx: { params: Promise<{ slug: string }> }) {
+export const runtime = "nodejs";
+
+// Kısa URL yönlendirme: /s/[slug] → 302 (hızlı)
+export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params;
-  const rows = await db.select().from(shortUrls).where(eq(shortUrls.slug, slug));
-  const r = rows[0];
-  if (!r) return NextResponse.json({ success: false, code: 404, message: "Kısa URL bulunamadı." }, { status: 404 });
-  await pool.query(`UPDATE short_urls SET clicks=clicks+1 WHERE id=${r.id}`);
-  return NextResponse.redirect(r.originalUrl, 302);
+  const admin = createAdminClient();
+
+  const { data } = await admin.rpc("short_url_click", { p_slug: slug });
+  const row = Array.isArray(data) ? data[0] : (data as { original_url?: string } | null);
+  const original = row?.original_url;
+  if (!original) {
+    return NextResponse.json({ success: false, code: 404, message: "Kısa URL bulunamadı." }, { status: 404 });
+  }
+  return NextResponse.redirect(original, 302);
 }

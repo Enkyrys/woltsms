@@ -1,73 +1,138 @@
-import { NextResponse } from "next/server";
-import { db, pool } from "@/db";
-import { roles, rolePermissions, permissions, auditLogs } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
-import { getSession, hasPermission } from "@/lib/auth";
+import { z } from "zod";
+import { getSession, hasPermissionSync } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient as createUserClient } from "@/lib/supabase/server";
+import { ok, unauthorized, forbidden, badRequest } from "@/lib/api-response";
+
+export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   const s = await getSession();
-  if (!s) return NextResponse.json({ success: false, code: 401, message: "Oturum gerekli." }, { status: 401 });
-  if (!(await hasPermission(s, "roles.manage"))) return NextResponse.json({ success: false, code: 403, message: "Yetkiniz yok." }, { status: 403 });
+  if (!s) return unauthorized();
+  if (!hasPermissionSync(s, "roles.view") && !s.isAdmin) return forbidden();
+
+  const admin = createAdminClient();
   const url = new URL(req.url);
-  if (url.searchParams.get("action") === "permissions") {
-    const perms = await db.select().from(permissions);
-    return NextResponse.json({ success: true, code: 200, message: "OK", data: perms });
+  const id = url.searchParams.get("id");
+
+  if (id) {
+    const { data: role } = await admin.from("roles").select("*").eq("id", id).maybeSingle();
+    const { data: assigned } = await admin.from("role_permissions").select("permission_code").eq("role_id", id);
+    const { data: allPerms } = await admin.from("permissions").select("*").order("group_name").order("code");
+    return ok({
+      role,
+      assigned: (assigned ?? []).map((r) => r.permission_code),
+      all: allPerms ?? [],
+    });
   }
+
+  // panel "Yetki Matrisi" kataloğu
+  if (url.searchParams.get("action") === "permissions") {
+    const { data: allPerms } = await admin
+      .from("permissions")
+      .select("code, name, group_name")
+      .order("group_name")
+      .order("code");
+    return ok((allPerms ?? []).map((p) => ({
+      code: p.code,
+      name: p.name,
+      groupName: p.group_name,
+    })), "OK");
+  }
+
   const page = Math.max(1, Number(url.searchParams.get("page") || 1));
   const perPage = Math.min(100, Number(url.searchParams.get("perPage") || 10));
   const search = url.searchParams.get("search") || "";
-  let where = "1=1";
-  if (search) where += ` AND name ILIKE '%${search.replace(/'/g, "''")}%'`;
-  const total = Number((await pool.query(`SELECT COUNT(*) c FROM roles WHERE ${where}`)).rows[0].c);
-  const rows = (await pool.query(`SELECT id, name, read_only as "readOnly", created_at as "createdAt", updated_at as "updatedAt" FROM roles WHERE ${where} ORDER BY id ASC LIMIT $1 OFFSET $2`, [perPage, (page - 1) * perPage])).rows;
-  // attach permissions
-  for (const r of rows) {
-    const rp = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, r.id));
-    r.permissions = rp.map((x) => x.permissionCode);
+
+  let listQ = admin.from("roles").select("*", { count: "exact" });
+  if (search) listQ = listQ.ilike("name", `%${search}%`);
+  const { count, data } = await listQ
+    .order("created_at", { ascending: false })
+    .range((page - 1) * perPage, page * perPage - 1);
+
+  // satır bazlı yetki sayıları (liste "N yetki" ve düzenleme formu için)
+  const roleIds = (data ?? []).map((r) => r.id);
+  const permsByRole = new Map<string, string[]>();
+  if (roleIds.length) {
+    const { data: rps } = await admin
+      .from("role_permissions")
+      .select("role_id, permission_code")
+      .in("role_id", roleIds);
+    for (const rp of rps ?? []) {
+      const arr = permsByRole.get(rp.role_id) ?? [];
+      arr.push(rp.permission_code);
+      permsByRole.set(rp.role_id, arr);
+    }
   }
-  return NextResponse.json({ success: true, code: 200, message: "OK", data: rows, meta: { total, page, perPage, totalPages: Math.max(1, Math.ceil(total / perPage)) } });
+
+  return ok(
+    (data ?? []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      readOnly: r.read_only,
+      permissions: permsByRole.get(r.id) ?? [],
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    })),
+    "OK",
+    { total: count ?? 0, page, perPage }
+  );
 }
+
+const CreateSchema = z.object({
+  name: z.string().min(1),
+  readOnly: z.boolean().optional(),
+});
 
 export async function POST(req: Request) {
   const s = await getSession();
-  if (!s) return NextResponse.json({ success: false, code: 401, message: "Oturum gerekli." }, { status: 401 });
-  if (!(await hasPermission(s, "roles.manage"))) return NextResponse.json({ success: false, code: 403, message: "Yetkiniz yok." }, { status: 403 });
-  const b = await req.json();
-  if (!b.name) return NextResponse.json({ success: false, code: 400, message: "Rol adı gerekli." }, { status: 400 });
-  const ins = await db.insert(roles).values({ name: String(b.name), readOnly: Boolean(b.readOnly) }).returning();
-  const perms: string[] = Array.isArray(b.permissions) ? b.permissions : [];
-  for (const p of perms) await db.insert(rolePermissions).values({ roleId: ins[0].id, permissionCode: p });
-  await db.insert(auditLogs).values({ actorId: s.id, action: "roles.create", payload: JSON.stringify({ name: b.name }) });
-  return NextResponse.json({ success: true, code: 200, message: "Rol oluşturuldu.", data: ins[0] });
+  if (!s) return unauthorized();
+  if (!hasPermissionSync(s, "roles.manage") && !s.isAdmin) return forbidden();
+
+  const body = await req.json().catch(() => ({}));
+  const parsed = CreateSchema.safeParse(body);
+  if (!parsed.success) return badRequest("Geçersiz istek.");
+
+  const user = await createUserClient();
+  const { data, error } = await user.rpc("admin_create_role", {
+    p_name: parsed.data.name,
+    p_read_only: parsed.data.readOnly ?? false,
+  });
+  if (error) return badRequest(error.message);
+  return ok(data as Record<string, unknown>, "Rol oluşturuldu.");
 }
 
-export async function PUT(req: Request) {
-  const s = await getSession();
-  if (!s) return NextResponse.json({ success: false, code: 401, message: "Oturum gerekli." }, { status: 401 });
-  if (!(await hasPermission(s, "roles.manage"))) return NextResponse.json({ success: false, code: 403, message: "Yetkiniz yok." }, { status: 403 });
-  const b = await req.json();
-  if (!b.id) return NextResponse.json({ success: false, code: 400, message: "ID gerekli." }, { status: 400 });
-  await db.update(roles).set({ name: b.name ? String(b.name) : undefined, readOnly: b.readOnly !== undefined ? Boolean(b.readOnly) : undefined, updatedAt: new Date() }).where(eq(roles.id, Number(b.id)));
-  if (Array.isArray(b.permissions)) {
-    await db.delete(rolePermissions).where(eq(rolePermissions.roleId, Number(b.id)));
-    for (const p of b.permissions) await db.insert(rolePermissions).values({ roleId: Number(b.id), permissionCode: String(p) });
-  }
-  await db.insert(auditLogs).values({ actorId: s.id, action: "roles.update", payload: JSON.stringify({ id: b.id }) });
-  return NextResponse.json({ success: true, code: 200, message: "Rol güncellendi." });
-}
+const UpdateSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().optional(),
+  readOnly: z.boolean().optional(),
+  permissions: z.array(z.string()).optional(),
+});
 
-export async function DELETE(req: Request) {
+export async function PATCH(req: Request) {
   const s = await getSession();
-  if (!s) return NextResponse.json({ success: false, code: 401, message: "Oturum gerekli." }, { status: 401 });
-  if (!(await hasPermission(s, "roles.manage"))) return NextResponse.json({ success: false, code: 403, message: "Yetkiniz yok." }, { status: 403 });
-  const url = new URL(req.url);
-  const id = Number(url.searchParams.get("id"));
-  const rows = await db.select().from(roles).where(eq(roles.id, id));
-  if (!rows[0]) return NextResponse.json({ success: false, code: 404, message: "Bulunamadı." }, { status: 404 });
-  if (["admin", "Consumer", "Consumer_admin"].includes(rows[0].name)) {
-    return NextResponse.json({ success: false, code: 400, message: "Sistem rolleri silinemez." }, { status: 400 });
+  if (!s) return unauthorized();
+  if (!hasPermissionSync(s, "roles.manage") && !s.isAdmin) return forbidden();
+
+  const body = await req.json().catch(() => ({}));
+  const parsed = UpdateSchema.safeParse(body);
+  if (!parsed.success) return badRequest("Geçersiz istek.");
+
+  const user = await createUserClient();
+  if (parsed.data.permissions) {
+    const { error } = await user.rpc("admin_set_role_permissions", {
+      p_role_id: parsed.data.id,
+      p_codes: parsed.data.permissions,
+    });
+    if (error) return badRequest(error.message);
   }
-  await db.delete(rolePermissions).where(eq(rolePermissions.roleId, id));
-  await db.delete(roles).where(eq(roles.id, id));
-  return NextResponse.json({ success: true, code: 200, message: "Rol silindi." });
+  if (parsed.data.name !== undefined) {
+    const { error } = await user.rpc("admin_update_role", {
+      p_role_id: parsed.data.id,
+      p_name: parsed.data.name,
+      p_read_only: parsed.data.readOnly ?? false,
+    });
+    if (error) return badRequest(error.message);
+  }
+  return ok({ updated: true }, "Rol güncellendi.");
 }

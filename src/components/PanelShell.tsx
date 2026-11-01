@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Logo from "./Logo";
 
 type Me = {
-  id: number; username: string; name: string; email: string;
+  id: string; username: string; name: string; email: string;
   roleName: string | null; isAdmin: boolean; quota: string;
   permissions: string[];
 };
@@ -37,7 +37,7 @@ export default function PanelShell({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [pendingTopups, setPendingTopups] = useState(0);
-  const [notifs, setNotifs] = useState<{ list: { id: number; title: string; message: string; created_at: string }[]; unread: number }>({ list: [], unread: 0 });
+  const [notifs, setNotifs] = useState<{ list: { id: string; title: string; message: string; created_at: string }[]; unread: number }>({ list: [], unread: 0 });
   const [showNotifs, setShowNotifs] = useState(false);
   const [showUser, setShowUser] = useState(false);
   const [dark, setDark] = useState(false);

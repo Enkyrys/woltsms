@@ -4,18 +4,18 @@ import { PageTitle, Pagination, StatusBadge, CopyBtn, Empty, Modal, Field } from
 
 export default function KrediYuklePage() {
   const [tab, setTab] = useState<"bank" | "crypto">("bank");
-  const [banks, setBanks] = useState<{ id: number; bankName: string; accountHolder: string; iban: string }[]>([]);
-  const [assets, setAssets] = useState<{ id: number; asset: string; network: string; walletAddress: string; memoTag: string; rateTry: string; minAmountTry: string; explorerTxUrlTemplate: string }[]>([]);
+  const [banks, setBanks] = useState<{ id: string; bankName: string; accountHolder: string; iban: string }[]>([]);
+  const [assets, setAssets] = useState<{ id: string; asset: string; network: string; walletAddress: string; memoTag: string; rateTry: string; minAmountTry: string; explorerTxUrlTemplate: string }[]>([]);
   const [settings, setSettings] = useState<{ minTopupTry: string; maxTopupTry: string; bankNote: string }>({ minTopupTry: "100", maxTopupTry: "500000", bankNote: "" });
   const [amount, setAmount] = useState("1000");
   const [assetId, setAssetId] = useState("");
-  const [created, setCreated] = useState<{ request: { id: number; referenceCode: string; amountTry: string; walletAddressSnapshot: string }; banks?: typeof banks; asset?: (typeof assets)[0]; estimatedCrypto?: number; bankNote?: string } | null>(null);
-  const [rows, setRows] = useState<{ id: number; referenceCode: string; method: string; amountTry: string; asset: string; network: string; status: string; createdAt: string; updatedAt: string; txid: string }[]>([]);
+  const [created, setCreated] = useState<{ request: { id: string; referenceCode: string; amountTry: string; walletAddressSnapshot: string }; banks?: typeof banks; asset?: (typeof assets)[0]; estimatedCrypto?: number; bankNote?: string } | null>(null);
+  const [rows, setRows] = useState<{ id: string; referenceCode: string; method: string; amountTry: string; asset: string; network: string; status: string; createdAt: string; updatedAt: string; txid: string }[]>([]);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [total, setTotal] = useState(0);
   // report forms
-  const [reportId, setReportId] = useState<number | null>(null);
+  const [reportId, setReportId] = useState<string | null>(null);
   const [senderName, setSenderName] = useState("");
   const [note, setNote] = useState("");
   const [txid, setTxid] = useState("");
@@ -45,12 +45,26 @@ export default function KrediYuklePage() {
     } else setQr("");
   }, [created]);
 
-  const toBase64 = (f: File): Promise<string> => new Promise((res, rej) => {
-    const rd = new FileReader();
-    rd.onload = () => res(String(rd.result));
-    rd.onerror = rej;
-    rd.readAsDataURL(f);
-  });
+  // Fiş doğrudan Supabase Storage'a imzalı URL ile yüklenir (Vercel gövde sınırı aşılmaz)
+  const uploadReceipt = async (f: File): Promise<string | null> => {
+    const ext = f.name.split(".").pop()?.toLowerCase() || "";
+    const byExt: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", pdf: "application/pdf" };
+    const contentType = f.type || byExt[ext] || "application/octet-stream";
+    const r = await fetch("/api/panel/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bucket: "receipts", filename: f.name, contentType }),
+    });
+    const j = await r.json().catch(() => ({ success: false, message: "Yükleme URL'i alınamadı." }));
+    if (!j.success) { alert(j.message); return null; }
+    const up = await fetch(j.data.uploadUrl, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${j.data.token}`, "x-upsert": "true" },
+      body: f,
+    });
+    if (!up.ok) { alert("Fiş dosyası yüklenemedi."); return null; }
+    return j.data.path as string;
+  };
 
   const createBank = async () => {
     const r = await fetch("/api/panel/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create-bank", amountTry: Number(amount) }) });
@@ -60,7 +74,7 @@ export default function KrediYuklePage() {
   };
 
   const createCrypto = async () => {
-    const r = await fetch("/api/panel/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create-crypto", amountTry: Number(amount), cryptoAssetId: Number(assetId) }) });
+    const r = await fetch("/api/panel/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create-crypto", amountTry: Number(amount), cryptoAssetId: assetId }) });
     const j = await r.json();
     if (!j.success) { alert(j.message); return; }
     setCreated(j.data); load();
@@ -68,9 +82,12 @@ export default function KrediYuklePage() {
 
   const reportBank = async (e: React.FormEvent, receiptFile?: File | null) => {
     e.preventDefault();
-    let receiptBase64 = null;
-    if (receiptFile) receiptBase64 = await toBase64(receiptFile);
-    const r = await fetch("/api/panel/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "report-bank", id: reportId, senderName, note, receiptBase64 }) });
+    let receiptPath: string | null = null;
+    if (receiptFile) {
+      receiptPath = await uploadReceipt(receiptFile);
+      if (!receiptPath) return;
+    }
+    const r = await fetch("/api/panel/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "report-bank", topupId: reportId, senderName, note, receiptPath }) });
     const j = await r.json();
     alert(j.message);
     if (j.success) { setReportId(null); setSenderName(""); setNote(""); load(page, perPage); }
@@ -78,9 +95,12 @@ export default function KrediYuklePage() {
 
   const reportCrypto = async (e: React.FormEvent, receiptFile?: File | null) => {
     e.preventDefault();
-    let receiptBase64 = null;
-    if (receiptFile) receiptBase64 = await toBase64(receiptFile);
-    const r = await fetch("/api/panel/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "report-crypto", id: reportId, txid, sentAmount: Number(sentAmount), fromAddress: fromAddr, userNote: note, receiptBase64 }) });
+    let receiptPath: string | null = null;
+    if (receiptFile) {
+      receiptPath = await uploadReceipt(receiptFile);
+      if (!receiptPath) return;
+    }
+    const r = await fetch("/api/panel/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "report-crypto", topupId: reportId, txid, sentAmount: Number(sentAmount), fromAddress: fromAddr, userNote: note, receiptPath }) });
     const j = await r.json();
     alert(j.message);
     if (j.success) { setReportId(null); setTxid(""); setSentAmount(""); setFromAddr(""); setNote(""); load(page, perPage); }
@@ -200,7 +220,7 @@ export default function KrediYuklePage() {
 }
 
 function ReportModal(props: {
-  requestId: number; rows: { id: number; method: string }[]; onClose: () => void;
+  requestId: string; rows: { id: string; method: string }[]; onClose: () => void;
   senderName: string; setSenderName: (v: string) => void; note: string; setNote: (v: string) => void;
   txid: string; setTxid: (v: string) => void; sentAmount: string; setSentAmount: (v: string) => void;
   fromAddr: string; setFromAddr: (v: string) => void;

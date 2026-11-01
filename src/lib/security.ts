@@ -1,20 +1,85 @@
 import crypto from "crypto";
-import bcrypt from "bcryptjs";
 
-const ENC_KEY = (process.env.ENCRYPTION_KEY || "woltsms-dev-encryption-key-32bytes!").padEnd(32, "0").slice(0, 32);
+// WOLTSMS - güvenlik yardımcıları
+// ENCRYPTION_KEY: 32 byte (base64 veya düz metin), yalnız sunucu env.
 
-export async function hashPassword(pw: string): Promise<string> {
-  return bcrypt.hash(pw, 10);
+function getEncKey(): Buffer {
+  const raw = process.env.ENCRYPTION_KEY || "woltsms-dev-encryption-key-32bytes!!";
+  // base64 ise çöz, değilse 32 byte'a uzat
+  try {
+    const b = Buffer.from(raw, "base64");
+    if (b.length === 32) return b;
+  } catch {
+    // düz metin
+  }
+  return Buffer.from(raw.padEnd(32, "0").slice(0, 32), "utf8");
 }
 
-export async function verifyPassword(pw: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(pw, hash);
+// AES-256-GCM: format iv:tag:ciphertext (base64)
+export function encrypt(plain: string): string {
+  const key = getEncKey();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const enc = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString("base64")}:${tag.toString("base64")}:${enc.toString("base64")}`;
 }
 
+export function decrypt(payload: string): string {
+  const [ivB64, tagB64, dataB64] = String(payload).split(":");
+  if (!ivB64 || !tagB64 || !dataB64) throw new Error("INVALID_ENCRYPTED_PAYLOAD");
+  const key = getEncKey();
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivB64, "base64"));
+  decipher.setAuthTag(Buffer.from(tagB64, "base64"));
+  return Buffer.concat([decipher.update(Buffer.from(dataB64, "base64")), decipher.final()]).toString("utf8");
+}
+
+export function sha256(input: string): string {
+  return crypto.createHash("sha256").update(input).digest("hex");
+}
+
+export function hmacSha256(secret: string, payload: string): string {
+  return crypto.createHmac("sha256", secret).update(payload).digest("hex");
+}
+
+export function timingSafeEqualStr(a: string, b: string): boolean {
+  const ba = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
+export function randomToken(bytes = 32): string {
+  return crypto.randomBytes(bytes).toString("hex");
+}
+
+// API anahtarı üretimi: wsk_live_<hex>
+export function generateApiKey(): { key: string; prefix: string; hash: string } {
+  const raw = crypto.randomBytes(24).toString("hex");
+  const key = `wsk_live_${raw}`;
+  const prefix = key.slice(0, 16); // wsk_live_ + 7 karakter
+  return { key, prefix, hash: sha256(key) };
+}
+
+// Referans kodu: WOLT-483920
+export function generateReferenceCode(): string {
+  return `WOLT-${Math.floor(100000 + Math.random() * 900000)}`;
+}
+
+// Kısa URL slug: kısa, okunur, çakışmaz
+export function generateSlug(len = 7): string {
+  const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
+  let out = "";
+  const buf = crypto.randomBytes(len);
+  for (let i = 0; i < len; i++) out += alphabet[buf[i] % alphabet.length];
+  return out;
+}
+
+// Şifre politikası: ≥8, 1 büyük, 1 küçük, 1 rakam, 1 özel
 export function validatePasswordPolicy(pw: string): string | null {
   if (pw.length < 8) return "Şifre en az 8 karakter olmalı.";
   if (!/[A-ZÇĞİÖŞÜ]/.test(pw)) return "Şifre en az 1 büyük harf içermeli.";
-  if (!/[a-zçğiöşü]/.test(pw)) return "Şifre en az 1 küçük harf içermeli.";
+  if (!/[a-zçğıöşü]/.test(pw)) return "Şifre en az 1 küçük harf içermeli.";
   if (!/[0-9]/.test(pw)) return "Şifre en az 1 rakam içermeli.";
   if (!/[^A-Za-z0-9çÇğĞıIİöÖşŞüÜ]/.test(pw)) return "Şifre en az 1 özel karakter içermeli.";
   return null;
@@ -25,50 +90,20 @@ export function generatePassword(): string {
   const lower = "abcdefghijkmnpqrstuvwxyz";
   const digits = "23456789";
   const special = "!@#$%&*?";
-  const pick = (s: string) => s[Math.floor(Math.random() * s.length)];
-  let pw = pick(upper) + pick(lower) + pick(digits) + pick(special);
   const all = upper + lower + digits + special;
-  for (let i = 0; i < 8; i++) pw += pick(all);
-  return pw.split("").sort(() => Math.random() - 0.5).join("");
-}
-
-export function encrypt(text: string): string {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", Buffer.from(ENC_KEY), iv);
-  const enc = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return Buffer.concat([iv, tag, enc]).toString("base64");
-}
-
-export function decrypt(payload: string): string {
-  const buf = Buffer.from(payload, "base64");
-  const iv = buf.subarray(0, 12);
-  const tag = buf.subarray(12, 28);
-  const data = buf.subarray(28);
-  const decipher = crypto.createDecipheriv("aes-256-gcm", Buffer.from(ENC_KEY), iv);
-  decipher.setAuthTag(tag);
-  return decipher.update(data) + decipher.final("utf8");
-}
-
-export function sha256(text: string): string {
-  return crypto.createHash("sha256").update(text).digest("hex");
-}
-
-export function hmacSha256(secret: string, payload: string): string {
-  return crypto.createHmac("sha256", secret).update(payload).digest("hex");
-}
-
-export function randomToken(bytes = 24): string {
-  return crypto.randomBytes(bytes).toString("hex");
-}
-
-export function generateReferenceCode(): string {
-  return "WOLT-" + Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-export function generateSlug(len = 7): string {
-  const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let s = "";
-  for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
-  return s;
+  const pick = (set: string, n: number) => {
+    let s = "";
+    const buf = crypto.randomBytes(n * 2);
+    for (let i = 0; i < n; i++) s += set[buf[i] % set.length];
+    return s;
+  };
+  let pw = pick(upper, 1) + pick(lower, 1) + pick(digits, 1) + pick(special, 1) + pick(all, 8);
+  // karıştır
+  const arr = [...pw];
+  const shuffle = crypto.randomBytes(arr.length);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = shuffle[i] % (i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.join("");
 }

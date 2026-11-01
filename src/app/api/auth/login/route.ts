@@ -1,49 +1,56 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { users, roles, auditLogs } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { verifyPassword } from "@/lib/security";
-import { signSession, SESSION_COOKIE } from "@/lib/auth";
+import { z } from "zod";
+import { loginWithUsername } from "@/lib/auth";
+import { badRequest, unauthorized } from "@/lib/api-response";
+import { createAdminClient } from "@/lib/supabase/admin";
 
+const LoginSchema = z.object({
+  username: z.string().min(1, "Kullanıcı adı gerekli."),
+  password: z.string().min(1, "Şifre gerekli."),
+  token: z.string().optional(), // 2FA TOTP (opsiyonel)
+});
+
+// Giriş: kullanıcı adı sunucuda e-postaya çözülür, Supabase Auth signInWithPassword.
 export async function POST(req: Request) {
+  let body: unknown;
   try {
-    const { username, password } = await req.json();
-    if (!username || !password) {
-      return NextResponse.json({ success: false, code: 400, message: "Kullanıcı adı ve şifre gerekli." }, { status: 400 });
-    }
-    const rows = await db.select().from(users).where(eq(users.username, String(username)));
-    const u = rows[0];
-    if (!u || !u.isActive) {
-      return NextResponse.json({ success: false, code: 401, message: "Geçersiz kullanıcı veya şifre." }, { status: 401 });
-    }
-    const ok = await verifyPassword(String(password), u.passwordHash);
-    if (!ok) {
-      return NextResponse.json({ success: false, code: 401, message: "Geçersiz kullanıcı veya şifre." }, { status: 401 });
-    }
-    let roleName: string | null = null;
-    if (u.roleId) {
-      const r = await db.select().from(roles).where(eq(roles.id, u.roleId));
-      roleName = r[0]?.name ?? null;
-    }
-    const isAdmin = roleName === "admin" || roleName === "SuperAdmin" || u.username === "admin";
-    const session = {
-      id: u.id,
-      username: u.username,
-      name: u.name,
-      email: u.email,
-      roleId: u.roleId,
-      roleName,
-      isAdmin,
-      quota: String(u.quota ?? "0"),
-      unitPrice: String(u.unitPrice ?? "1"),
-      quotaType: u.quotaType ?? "variable",
-    };
-    const token = signSession(session);
-    await db.insert(auditLogs).values({ actorId: u.id, action: "auth.login", ip: req.headers.get("x-forwarded-for") || "", payload: JSON.stringify({ username: u.username }) });
-    const res = NextResponse.json({ success: true, code: 200, message: "Giriş başarılı.", data: session });
-    res.cookies.set(SESSION_COOKIE, token, { httpOnly: true, path: "/", maxAge: 12 * 3600, sameSite: "lax" });
-    return res;
-  } catch (e) {
-    return NextResponse.json({ success: false, code: 500, message: "Sunucu hatası." }, { status: 500 });
+    body = await req.json();
+  } catch {
+    return badRequest("Geçersiz JSON.");
   }
+
+  const parsed = LoginSchema.safeParse(body);
+  if (!parsed.success) {
+    return badRequest(parsed.error.errors[0]?.message || "Geçersiz istek.");
+  }
+  const { username, password } = parsed.data;
+
+  // brute-force koruması (ip başına)
+  const fwd = req.headers.get("x-forwarded-for") || "";
+  const ip = (fwd.split(",")[0] || "unknown").trim();
+  const admin = createAdminClient();
+  const { data: allowed } = await admin.rpc("rate_limit_check", {
+    p_key: `login:${ip}`,
+    p_max: Number(process.env.LOGIN_RATE_LIMIT || 10),
+    p_window_seconds: 300,
+  });
+  if (allowed === false) {
+    return NextResponse.json(
+      { success: false, code: 429, message: "Çok fazla giriş denemesi. Lütfen 5 dakika bekleyin." },
+      { status: 429 }
+    );
+  }
+
+  const result = await loginWithUsername(username.trim(), password);
+  if (!result.ok) {
+    // başarısız denemeyi audit'a yaz
+    admin
+      .from("audit_logs")
+      .insert({ action: "auth.login_failed", ip, payload: { username } })
+      .then(() => undefined)
+      .catch(() => undefined);
+    return unauthorized(result.error);
+  }
+
+  return NextResponse.json({ success: true, code: 200, message: "Giriş başarılı." });
 }

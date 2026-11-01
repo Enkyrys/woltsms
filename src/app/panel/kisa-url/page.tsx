@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { PageTitle, Pagination, Empty, CopyBtn } from "@/components/ui";
 
 export default function KisaUrlPage() {
-  const [rows, setRows] = useState<{ id: number; businessName: string; originalUrl: string; slug: string; shortUrl: string; clicks: number; username: string }[]>([]);
+  const [rows, setRows] = useState<{ id: string; businessName: string; originalUrl: string; slug: string; shortUrl: string; clicks: number; username: string }[]>([]);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [total, setTotal] = useState(0);
@@ -20,7 +20,7 @@ export default function KisaUrlPage() {
   useEffect(() => { load(); }, []);
 
   const save = async () => {
-    const r = await fetch("/api/panel/shorturls", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, businessName: biz }) });
+    const r = await fetch("/api/panel/shorturls", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ originalUrl: url, businessName: biz }) });
     const j = await r.json();
     alert(j.message);
     if (j.success) { setShow(false); setUrl(""); setBiz(""); load(page, perPage); }
