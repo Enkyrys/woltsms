@@ -11,7 +11,7 @@ import {
   maskPhone,
   maskBody,
   nextWindowStart,
-} from "@/lib/sms/segments";
+} from "@/lib/sms-segments";
 
 describe("segment hesabı — GSM", () => {
   it("kısa ASCII mesaj 1 segment", () => {

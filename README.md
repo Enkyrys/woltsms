@@ -203,7 +203,7 @@ uygulanmış olması gerekir.
   ile iptal + rezerv iadesi yapılır.
 - **Segment:** GSM 160/153, UCS-2 70/67. Kodlama GSM 03.38 tablosuna göre belirlenir:
   ş, Ş, ğ, Ğ, ı, İ ve küçük **ç** tabloda olmadığı için UCS-2'ye zorlar; Ç, ö, ü, Ö, Ü GSM'dir.
-  UCS-2 uzunluğu UTF-16 kod birimidir (emoji = 2). TS (`lib/sms/segments.ts`) ve SQL
+  UCS-2 uzunluğu UTF-16 kod birimidir (emoji = 2). TS (`lib/sms-segments.ts`) ve SQL
   (`sms_segments`) aynı tabloyu kullanır.
 - **Kara liste:** otomatik filtrelenir (sipariş oluştururken).
 - **Kredi yükleme:** Havale/EFT fişi Storage'a imzalı URL ile yüklenir; kripto

@@ -927,7 +927,7 @@ begin
   end if;
   v_auth := gen_random_uuid();
   insert into auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, aud, role, created_at, updated_at)
-  values (v_auth, '00000000-0000-0000-0000-000000000000', lower(p_email), crypt(p_password, gen_salt('bf', 10)),
+  values (v_auth, '00000000-0000-0000-0000-000000000000', lower(p_email), extensions.crypt(p_password, extensions.gen_salt('bf', 10)),
           now(), '{"provider":"email","providers":["email"]}'::jsonb, 'authenticated', 'authenticated', now(), now());
   insert into public.profiles (id, username, name, phone, role_id, quota_type, created_by)
   values (v_auth, lower(p_username), p_name, p_phone, p_role_id, coalesce(p_quota_type,'variable'), auth.uid());

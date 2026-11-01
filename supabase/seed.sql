@@ -15,7 +15,7 @@ begin
     insert into auth.users (id, instance_id, email, encrypted_password, email_confirmed_at,
       raw_app_meta_data, aud, role, created_at, updated_at)
     values (v_uid, '00000000-0000-0000-0000-000000000000', 'admin@woltsms.local',
-      crypt('Admin123!', gen_salt('bf', 10)), now(),
+      extensions.crypt('Admin123!', extensions.gen_salt('bf', 10)), now(),
       '{"provider":"email","providers":["email"]}'::jsonb, 'authenticated', 'authenticated', now(), now());
 
     insert into public.profiles (id, username, name, phone, role_id, quota_type, is_active)
@@ -39,7 +39,7 @@ begin
     insert into auth.users (id, instance_id, email, encrypted_password, email_confirmed_at,
       raw_app_meta_data, aud, role, created_at, updated_at)
     values (v_uid, '00000000-0000-0000-0000-000000000000', 'demo@woltsms.local',
-      crypt('Demo123!', gen_salt('bf', 10)), now(),
+      extensions.crypt('Demo123!', extensions.gen_salt('bf', 10)), now(),
       '{"provider":"email","providers":["email"]}'::jsonb, 'authenticated', 'authenticated', now(), now());
 
     insert into public.profiles (id, username, name, phone, role_id, quota_type, is_active)

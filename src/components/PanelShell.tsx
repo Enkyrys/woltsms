@@ -62,6 +62,19 @@ export default function PanelShell({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
 
+  useEffect(() => {
+    if (!showUser && !showNotifs) return;
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest("[data-dropdown]")) { setShowUser(false); setShowNotifs(false); }
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setShowUser(false); setShowNotifs(false); } };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [showUser, showNotifs]);
+
+  const initials = (me?.name || me?.username || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+
   const can = (perm?: string) => {
     if (!perm) return true;
     if (!me) return false;
@@ -81,8 +94,9 @@ export default function PanelShell({ children }: { children: ReactNode }) {
           {announcement}
         </div>
       )}
-      <div className="header-gradient pixel-texture">
-        <header className="max-w-[1400px] mx-auto flex items-center justify-between px-4 lg:px-8 pt-4 pb-6">
+      <div className="relative">
+        <div className="header-gradient pixel-texture absolute inset-0 pointer-events-none" aria-hidden />
+        <header className="relative z-30 max-w-[1400px] mx-auto flex items-center justify-between px-4 lg:px-8 pt-4 pb-6">
           <div className="flex items-center gap-3">
             <button className="lg:hidden text-2xl" onClick={() => setMobileMenu(!mobileMenu)}>☰</button>
             <Logo />
@@ -93,7 +107,7 @@ export default function PanelShell({ children }: { children: ReactNode }) {
                 ₺ {Number(me.quota).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
               </a>
             )}
-            <div className="relative">
+            <div className="relative" data-dropdown>
               <button onClick={() => { setShowNotifs(!showNotifs); setShowUser(false); }} className="w-9 h-9 grid place-items-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm relative">
                 🔔
                 {notifs.unread > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4.5 h-4.5 px-1 rounded-full">{notifs.unread}</span>}
@@ -119,8 +133,15 @@ export default function PanelShell({ children }: { children: ReactNode }) {
             <button onClick={() => setDark(!dark)} className="w-9 h-9 grid place-items-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
               {dark ? "🌙" : "☀️"}
             </button>
-            <div className="relative">
-              <button onClick={() => { setShowUser(!showUser); setShowNotifs(false); }} className="w-9 h-9 grid place-items-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">👤</button>
+            <div className="relative" data-dropdown>
+              <button
+                onClick={() => { setShowUser(!showUser); setShowNotifs(false); }}
+                aria-label="Profil menüsü"
+                aria-expanded={showUser}
+                className="w-9 h-9 grid place-items-center rounded-full bg-[#0FB5A0] text-white text-[13px] font-bold shadow-sm hover:bg-[#0A8F7E] transition"
+              >
+                {me ? initials : "👤"}
+              </button>
               {showUser && me && (
                 <div className="absolute right-0 mt-2 w-60 card p-4 z-50">
                   <div className="font-bold text-sm">{me.name}</div>
