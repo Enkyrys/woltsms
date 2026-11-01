@@ -9,6 +9,18 @@ export { MockProvider } from "./mock";
 export { GatumProvider } from "./gatum";
 export { GenericHttpProvider } from "./http";
 
+// Aktif (is_active) bir sağlayıcı tanımlı mı? Pasifse siparişler "Bekliyor" kalır,
+// admin manuel olarak "iletildi" onayı verir.
+export async function hasActiveProvider(): Promise<boolean> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("provider_settings")
+    .select("id")
+    .eq("is_active", true)
+    .limit(1);
+  return !error && (data?.length ?? 0) > 0;
+}
+
 // Aktif sağlayıcıyı provider_settings tablosundan kurar.
 // Panel > Entegrasyonlar sekmesinde tanımlanır; kimlik bilgileri AES-256-GCM.
 export async function getActiveProvider(): Promise<ProviderInterface> {

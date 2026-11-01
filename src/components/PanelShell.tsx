@@ -5,9 +5,16 @@ import Logo from "./Logo";
 
 type Me = {
   id: string; username: string; name: string; email: string;
-  roleName: string | null; isAdmin: boolean; quota: string;
+  roleName: string | null; isAdmin: boolean; quota: string; unitPrice?: string;
   permissions: string[];
 };
+
+// Kalan bakiye / birim fiyat = gönderilebilecek SMS adedi
+function smsCount(balance: string | number, unitPrice?: string | number): number | null {
+  const price = Number(unitPrice);
+  if (!isFinite(price) || price <= 0) return null;
+  return Math.max(0, Math.floor(Number(balance) / price + 1e-9));
+}
 
 const MENU: { href: string; label: string; perm?: string; admin?: boolean }[] = [
   { href: "/panel/dashboard", label: "Dashboard" },
@@ -105,6 +112,9 @@ export default function PanelShell({ children }: { children: ReactNode }) {
             {me && (
               <a href="/panel/kredi-yukle" className="hidden sm:inline-flex items-center gap-1.5 text-[13px] font-bold px-3 py-1.5 rounded-full bg-[#E6FAF7] text-[#0A8F7E] border border-[#0FB5A0]/30 hover:bg-[#0FB5A0] hover:text-white transition">
                 ₺ {Number(me.quota).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                {smsCount(me.quota, me.unitPrice) !== null && (
+                  <span className="pl-1.5 ml-0.5 border-l border-[#0FB5A0]/30">{smsCount(me.quota, me.unitPrice)!.toLocaleString("tr-TR")} SMS</span>
+                )}
               </a>
             )}
             <div className="relative" data-dropdown>
@@ -147,6 +157,12 @@ export default function PanelShell({ children }: { children: ReactNode }) {
                   <div className="font-bold text-sm">{me.name}</div>
                   <div className="text-[12px] text-slate-500">@{me.username} · {me.roleName || "Kullanıcı"}</div>
                   <div className="text-[12px] text-slate-500 mt-1">Bakiye: ₺ {Number(me.quota).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</div>
+                  {smsCount(me.quota, me.unitPrice) !== null && (
+                    <>
+                      <div className="text-[12px] text-slate-500">Kalan SMS: <b className="text-[#0A8F7E]">{smsCount(me.quota, me.unitPrice)!.toLocaleString("tr-TR")} adet</b></div>
+                      <div className="text-[11px] text-slate-400">Birim fiyat: ₺ {Number(me.unitPrice).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</div>
+                    </>
+                  )}
                   <button onClick={logout} className="btn-outline w-full mt-3 py-2 text-sm">Çıkış Yap</button>
                 </div>
               )}

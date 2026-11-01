@@ -32,6 +32,7 @@ export default function DashboardPage() {
   const [history, setHistory] = useState<{ id: string; body: string }[]>([]);
   const [message, setMessage] = useState("");
   const [balance, setBalance] = useState("0");
+  const [unitPrice, setUnitPrice] = useState("0");
   const [recent, setRecent] = useState<{ id: string; status: string; totalCount: number; processedCount: number; createdAt: string }[]>([]);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState("");
@@ -44,6 +45,7 @@ export default function DashboardPage() {
     fetch("/api/panel/contacts?perPage=100").then(async (r) => { if (r.ok) { const j = await r.json(); setLists(j.data); } });
     fetch("/api/panel/history").then(async (r) => { if (r.ok) { const j = await r.json(); setHistory(j.data); } });
     fetch("/api/panel/transactions?action=balance").then(async (r) => { if (r.ok) { const j = await r.json(); setBalance(j.data.balance); } });
+    fetch("/api/panel/balance").then(async (r) => { if (r.ok) { const j = await r.json(); setBalance(j.data.balance); setUnitPrice(j.data.unitPrice); } });
     fetch("/api/panel/orders?perPage=5").then(async (r) => { if (r.ok) { const j = await r.json(); setRecent(j.data); } });
   }, []);
 
@@ -112,7 +114,7 @@ export default function DashboardPage() {
       <PageTitle>Yeni Sipariş</PageTitle>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card className="!p-4"><div className="text-[12px] text-slate-500 font-semibold">KALAN KREDİ</div><div className="text-2xl font-extrabold text-[#0A8F7E]">₺ {Number(balance).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</div><a href="/panel/kredi-yukle" className="text-[12px] text-[#0FB5A0] font-semibold">+ Kredi Yükle</a></Card>
+        <Card className="!p-4"><div className="text-[12px] text-slate-500 font-semibold">KALAN KREDİ</div><div className="text-2xl font-extrabold text-[#0A8F7E]">₺ {Number(balance).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</div>{Number(unitPrice) > 0 && <div className="text-[13px] font-bold text-slate-700 mt-0.5">≈ {Math.max(0, Math.floor(Number(balance) / Number(unitPrice) + 1e-9)).toLocaleString("tr-TR")} SMS</div>}<a href="/panel/kredi-yukle" className="text-[12px] text-[#0FB5A0] font-semibold">+ Kredi Yükle</a></Card>
         <Card className="!p-4"><div className="text-[12px] text-slate-500 font-semibold">ALICI / SEGMENT</div><div className="text-2xl font-extrabold">{numCount} <span className="text-sm text-slate-400">numara</span> · {seg.seg} <span className="text-sm text-slate-400">segment ({seg.enc})</span></div><div className="text-[12px] text-slate-500">Tahmini tutar: ₺{estCost}</div></Card>
         <Card className="!p-4"><div className="text-[12px] text-slate-500 font-semibold">SON SİPARİŞLER</div>{recent.length === 0 ? <div className="text-sm text-slate-400 mt-1">Sipariş bulunamadı.</div> : recent.slice(0, 3).map((o) => (<div key={o.id} className="flex justify-between text-[13px] py-1 border-b last:border-0"><span>#{o.id} · {o.totalCount} adet</span><span className="text-slate-500">{o.status}</span></div>))}</Card>
       </div>

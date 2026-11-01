@@ -10,6 +10,9 @@ export default function SiparislerPage() {
   const [status, setStatus] = useState("");
   const [detail, setDetail] = useState<{ order: Record<string, string | number>; messages: { id: string; recipient: string; status: string; segments: number; cost: string }[] } | null>(null);
   const [showFilter, setShowFilter] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
 
   const load = (p = page, pp = perPage, st = status) => {
     fetch(`/api/panel/orders?page=${p}&perPage=${pp}&status=${st}`).then(async (r) => {
@@ -17,7 +20,25 @@ export default function SiparislerPage() {
       if (j.success) { setRows(j.data); setTotal(j.meta.total); setPage(j.meta.page); setPerPage(j.meta.perPage); }
     });
   };
-  useEffect(() => { load(1, 10, ""); }, []);
+  useEffect(() => {
+    load(1, 10, "");
+    fetch("/api/auth/me").then(async (r) => { if (r.ok) { const j = await r.json(); setIsAdmin(!!j.data?.isAdmin); } });
+  }, []);
+
+  // Sağlayıcı API'si pasifken bekleyen siparişi manuel olarak "iletildi" onayla (admin)
+  const deliver = async (id: string) => {
+    if (!confirm("Bu sipariş iletildi olarak onaylansın mı? Mesajlar 'İletildi' işaretlenir ve bakiye kesinleşir.")) return;
+    setBusy(true);
+    const r = await fetch("/api/panel/admin/orders/deliver", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: id }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setBusy(false);
+    setNotice(j.success ? `Sipariş iletildi olarak onaylandı (${j.data?.messages ?? 0} mesaj).` : (j.message || "İşlem başarısız."));
+    setDetail(null);
+    load(page, perPage, status);
+  };
+  const canDeliver = (st: string) => isAdmin && (st === "pending" || st === "scheduled" || st === "processing");
 
   const open = async (id: string) => {
     const r = await fetch(`/api/panel/orders?id=${id}&perPage=50`);
@@ -28,6 +49,7 @@ export default function SiparislerPage() {
   return (
     <div>
       <PageTitle>Siparişler</PageTitle>
+      {notice && <div className="card mb-3 text-sm flex justify-between"><span>{notice}</span><button onClick={() => setNotice("")}>✕</button></div>}
       <div className="flex justify-end mb-3">
         <button onClick={() => setShowFilter(!showFilter)} className="btn-outline w-10 h-10 grid place-items-center">⧩</button>
       </div>
@@ -45,10 +67,10 @@ export default function SiparislerPage() {
       <div className="card !p-0 overflow-hidden">
         <table className="w-full table-head">
           <thead><tr className="text-left border-b">
-            <th>ID</th><th>Durum ↕ ⧩</th><th>İşlenen ↕ ⧩</th><th>Oluşturan</th><th>Gönderileceği Tarihi</th><th className="sorted-col">Oluşturulma Tarihi ⤓ ⧩</th>
+            <th>ID</th><th>Durum ↕ ⧩</th><th>İşlenen ↕ ⧩</th><th>Oluşturan</th><th>Gönderileceği Tarihi</th><th className="sorted-col">Oluşturulma Tarihi ⤓ ⧩</th>{isAdmin && <th>İşlem</th>}
           </tr></thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={6}><Empty text="Sipariş bulunamadı." /></td></tr>}
+            {rows.length === 0 && <tr><td colSpan={isAdmin ? 7 : 6}><Empty text="Sipariş bulunamadı." /></td></tr>}
             {rows.map((r) => (
               <tr key={r.id} className="table-row cursor-pointer" onClick={() => open(r.id)}>
                 <td className="font-bold text-[#0FB5A0]">#{r.id}</td>
@@ -57,6 +79,11 @@ export default function SiparislerPage() {
                 <td>{r.username}</td>
                 <td>{r.scheduledAt ? new Date(r.scheduledAt).toLocaleString("tr-TR") : "-"}</td>
                 <td>{new Date(r.createdAt).toLocaleString("tr-TR")}</td>
+                {isAdmin && (
+                  <td onClick={(e) => e.stopPropagation()}>
+                    {canDeliver(r.status) && <button disabled={busy} className="btn-outline text-[12px] px-2.5 py-1" onClick={() => deliver(r.id)}>İletildi Onayla</button>}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -73,6 +100,9 @@ export default function SiparislerPage() {
           </div>
           <div className="flex gap-2 mb-3">
             <a className="btn-outline text-[12px] px-3 py-1.5" href={`/api/panel/orders?id=${detail.order.id}&export=csv`}>CSV İndir</a>
+            {canDeliver(String(detail.order.status)) && (
+              <button disabled={busy} className="btn-primary text-[12px] px-3 py-1.5" onClick={() => deliver(String(detail.order.id))}>İletildi Olarak Onayla</button>
+            )}
             {(detail.order.status === "scheduled" || detail.order.status === "pending") && (
               <button className="btn-red text-[12px] px-3 py-1.5" onClick={async () => { if (!confirm("İptal edilsin mi? İade yapılır.")) return; await fetch(`/api/panel/orders?id=${detail.order.id}`, { method: "DELETE" }); setDetail(null); load(page, perPage, status); }}>İptal Et</button>
             )}

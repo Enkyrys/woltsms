@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveProvider } from "@/lib/providers";
+import { getActiveProvider, hasActiveProvider } from "@/lib/providers";
 import type { Json } from "@/db/types";
 
 // WOLTSMS - servis katmanı: tüm bakiye işlemleri SQL RPC'lerinde.
@@ -123,6 +123,24 @@ export async function createOrder(opts: {
   }
 }
 
+// ===================== manuel iletim (sağlayıcı pasifken) =====================
+
+export async function manualDeliverOrder(orderId: string, actorId: string): Promise<RpcResult<{ messages: number }>> {
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("rpc_manual_deliver_order", { p_order_id: orderId, p_actor: actorId });
+    if (error) {
+      const m = error.message.match(/(ORDER_NOT_FOUND|ORDER_NOT_PENDING|NO_PENDING_MESSAGES)/);
+      if (m?.[1] === "ORDER_NOT_FOUND") return { ok: false, error: "Sipariş bulunamadı.", code: 404 };
+      if (m) return { ok: false, error: "Bu siparişte iletilecek bekleyen mesaj yok.", code: 409 };
+      return { ok: false, error: error.message, code: 500 };
+    }
+    return { ok: true, data: { messages: Number((data as { messages?: number } | null)?.messages ?? 0) } };
+  } catch (e) {
+    return { ok: false, ...mapError(e) };
+  }
+}
+
 // ===================== kredi işlemleri =====================
 
 export async function approveTopup(topupId: string, amount: number, note?: string): Promise<RpcResult> {
@@ -159,6 +177,10 @@ export async function adminAdjust(userId: string, amount: number, description?: 
 
 export async function processSendBatch(limit = 250): Promise<{ claimed: number; sent: number; failed: number; retried: number }> {
   const admin = createAdminClient();
+
+  // Sağlayıcı API'si pasifse otomatik gönderim yapılmaz: mesajlar kuyrukta, siparişler
+  // "Bekliyor" kalır. Admin siparişi manuel olarak "iletildi" onaylayabilir.
+  if (!(await hasActiveProvider())) return { claimed: 0, sent: 0, failed: 0, retried: 0 };
   const provider = await getActiveProvider();
 
   // SKIP LOCKED ile parti al
@@ -438,7 +460,10 @@ export async function runWorker(): Promise<{
     processSendBatch(Number(process.env.WORKER_BATCH_SIZE || 250)).catch(() => ({ claimed: 0, sent: 0, failed: 0, retried: 0 })),
     processCallbacks(100).catch(() => ({ delivered: 0, failed: 0 })),
     Promise.resolve(admin.rpc("rpc_expire_topups")).then((r) => (r.data as number) ?? 0).catch(() => 0),
-    Promise.resolve(admin.rpc("rpc_cancel_out_of_window")).then((r) => (r.data as number) ?? 0).catch(() => 0),
+    // sağlayıcı pasifken bekleyen siparişler pencere dışı iptal edilmez (admin manuel onaylar)
+    hasActiveProvider()
+      .then((active) => (active ? Promise.resolve(admin.rpc("rpc_cancel_out_of_window")).then((r) => (r.data as number) ?? 0) : 0))
+      .catch(() => 0),
     Promise.resolve(admin.rpc("rpc_requeue_stuck", { p_minutes: 10 })).then((r) => (r.data as number) ?? 0).catch(() => 0),
     checkProviderBalance().catch(() => null),
     processImportJobs(3).catch(() => 0),
