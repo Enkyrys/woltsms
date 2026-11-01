@@ -1,28 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { PageTitle, Card, Badge } from "@/components/ui";
+// Sunucu (rpc_create_order) ile aynı segment kuralları
+import { calcSegments, parseRecipients, validateAndNormalizeList } from "@/lib/sms-segments";
 
-function detectEncoding(msg: string): "GSM" | "UCS2" {
-  for (const ch of msg) {
-    if (["ş","Ş","ğ","Ğ","ı","İ"].includes(ch)) return "UCS2" as const;
-    const code = ch.charCodeAt(0);
-    if (code > 127 && !"çÇöÖüÜéèêëàâäîïôöùûÿñß ".includes(ch)) return "UCS2";
-  }
-  return "GSM";
-}
-function calcSeg(msg: string) {
-  if (!msg) return { enc: "GSM", len: 0, seg: 0, per: 160 };
-  const enc = detectEncoding(msg);
-  let len = 0;
-  if (enc === "GSM") {
-    for (const ch of msg) len += ["^","{","}","\\","[","~","]","|","€"].includes(ch) ? 2 : 1;
-  } else len = [...msg].length;
-  let per = enc === "GSM" ? (len <= 160 ? 160 : 153) : (len <= 70 ? 70 : 67);
-  let seg = len === 0 ? 0 : Math.ceil(len / per);
-  if (enc === "GSM" && len <= 160) seg = len ? 1 : 0;
-  if (enc === "UCS2" && len <= 70) seg = len ? 1 : 0;
-  return { enc, len, seg, per };
-}
 
 export default function DashboardPage() {
   const [lists, setLists] = useState<{ id: string; title: string; count: number }[]>([]);
@@ -49,9 +30,15 @@ export default function DashboardPage() {
     fetch("/api/panel/orders?perPage=5").then(async (r) => { if (r.ok) { const j = await r.json(); setRecent(j.data); } });
   }, []);
 
-  const seg = calcSeg(message);
-  const numCount = numbers.split(/[,\n;]+/).map((s) => s.trim()).filter(Boolean).length + (listId ? (lists.find((l) => String(l.id) === listId)?.count || 0) : 0);
-  const estCost = (seg.seg * numCount).toFixed(2);
+  const c = calcSegments(message);
+  const seg = { enc: c.encoding, len: c.length, seg: c.segments, per: c.perSegment };
+  // geçerli + tekil numaralar (sunucu da aynı şekilde normalize eder) + seçili rehberdeki kişiler
+  const typedCount = validateAndNormalizeList(parseRecipients(numbers)).valid.length;
+  const numCount = typedCount + (listId ? (lists.find((l) => String(l.id) === listId)?.count || 0) : 0);
+  // Tutar = (segment × birim fiyat, 4 hane yuvarlı) × alıcı sayısı — sunucudaki hesapla aynı
+  const unit = Number(unitPrice) || 0;
+  const perMsg = Math.round(seg.seg * unit * 10000) / 10000;
+  const estCost = (perMsg * numCount).toFixed(2);
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -115,7 +102,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card className="!p-4"><div className="text-[12px] text-slate-500 font-semibold">KALAN KREDİ</div><div className="text-2xl font-extrabold text-[#0A8F7E]">₺ {Number(balance).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</div>{Number(unitPrice) > 0 && <div className="text-[13px] font-bold text-slate-700 mt-0.5">≈ {Math.max(0, Math.floor(Number(balance) / Number(unitPrice) + 1e-9)).toLocaleString("tr-TR")} SMS</div>}<a href="/panel/kredi-yukle" className="text-[12px] text-[#0FB5A0] font-semibold">+ Kredi Yükle</a></Card>
-        <Card className="!p-4"><div className="text-[12px] text-slate-500 font-semibold">ALICI / SEGMENT</div><div className="text-2xl font-extrabold">{numCount} <span className="text-sm text-slate-400">numara</span> · {seg.seg} <span className="text-sm text-slate-400">segment ({seg.enc})</span></div><div className="text-[12px] text-slate-500">Tahmini tutar: ₺{estCost}</div></Card>
+        <Card className="!p-4"><div className="text-[12px] text-slate-500 font-semibold">ALICI / SEGMENT</div><div className="text-2xl font-extrabold">{numCount} <span className="text-sm text-slate-400">numara</span> · {seg.seg} <span className="text-sm text-slate-400">segment ({seg.enc})</span></div><div className="text-[12px] text-slate-500">Tahmini tutar: <b>₺{Number(estCost).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</b>{unit > 0 && seg.seg > 0 && <span className="text-slate-400"> ({numCount} × {seg.seg} segment × ₺{unit.toLocaleString("tr-TR", { maximumFractionDigits: 4 })})</span>}</div></Card>
         <Card className="!p-4"><div className="text-[12px] text-slate-500 font-semibold">SON SİPARİŞLER</div>{recent.length === 0 ? <div className="text-sm text-slate-400 mt-1">Sipariş bulunamadı.</div> : recent.slice(0, 3).map((o) => (<div key={o.id} className="flex justify-between text-[13px] py-1 border-b last:border-0"><span>#{o.id} · {o.totalCount} adet</span><span className="text-slate-500">{o.status}</span></div>))}</Card>
       </div>
 
