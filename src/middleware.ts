@@ -1,6 +1,8 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { corsMiddleware, applyCorsHeaders } from "@/lib/cors";
+
+type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 // Middleware yalnızca yönlendirme/oturum yenileme içindir;
 // yetki kontrolü her zaman Route Handler'da sunucuda yapılır.
@@ -27,7 +29,7 @@ export async function middleware(request: NextRequest) {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: CookieToSet[]) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
