@@ -96,7 +96,7 @@ export default function KullanicilarPage() {
               <option value="variable">Değişken Kota</option><option value="fixed">Sabit Kota</option>
             </select>
             <label className="label">Kota</label><input className="input mb-4" value={form.quota} disabled={!!edit} onChange={(e) => setForm({ ...form, quota: e.target.value })} placeholder="0" />
-            <label className="label">E-posta</label><input className="input mb-4" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="E-posta" />
+            <label className="label">E-posta (opsiyonel)</label><input className="input mb-4" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="E-posta" />
             <label className="label">Telefon</label><input className="input mb-4" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="(5__) ___-____" />
             <label className="label">Rol</label>
             <select className="input mb-4" value={form.roleId} onChange={(e) => setForm({ ...form, roleId: e.target.value })}>
