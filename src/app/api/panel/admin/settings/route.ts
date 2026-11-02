@@ -60,7 +60,7 @@ export async function GET(req: Request) {
     if (!hasPermissionSync(s, "provider.view") && !s.isAdmin) return forbidden();
     const { data } = await admin
       .from("provider_settings")
-      .select("id, provider, base_url, sender_id, is_active, low_balance_threshold, balance, balance_currency, last_balance_at, last_error, config")
+      .select("id, provider, base_url, sender_id, is_active, low_balance_threshold, balance, balance_currency, last_balance_at, last_error, config, credentials_encrypted")
       .order("provider");
     return ok(
       (data ?? []).map((p) => ({
@@ -75,7 +75,7 @@ export async function GET(req: Request) {
         lastBalanceAt: p.last_balance_at,
         lastError: p.last_error,
         config: p.config,
-        hasCredentials: false, // asla dönmez
+        hasCredentials: !!p.credentials_encrypted, // yalnız "kayıtlı mı" bilgisi; değer asla dönmez
       }))
     );
   }

@@ -14,6 +14,7 @@ type Provider = {
   lastBalanceAt: string | null;
   lastError: string | null;
   config: Record<string, unknown>;
+  hasCredentials?: boolean;
 };
 
 const PROVIDER_META: Record<string, { label: string; hint: string; fields: { key: string; label: string; placeholder?: string; type?: string }[] }> = {
@@ -228,7 +229,7 @@ export default function SistemPage() {
                       type={f.type || (f.key.toLowerCase().includes("secret") || f.key === "token" ? "password" : "text")}
                       value={creds[f.key] || ""}
                       onChange={(e) => setCreds({ ...creds, [f.key]: e.target.value })}
-                      placeholder={f.placeholder}
+                      placeholder={providers.find((x) => x.provider === kind)?.hasCredentials ? "•••••••••••• (şifreli kayıtlı — değiştirmek için yeni değer girin)" : f.placeholder}
                       autoComplete="off"
                     />
                   </Field>
@@ -236,6 +237,13 @@ export default function SistemPage() {
               </div>
             )}
 
+            {kind === "gatum" && (
+              <div className="text-[12px] bg-slate-50 border rounded-lg p-3 mb-3">
+                <div className="font-bold mb-1">İleti durumları (DLR) için Sempico paneline girilecek adres</div>
+                <div className="font-mono break-all select-all">{typeof window !== "undefined" ? window.location.origin : ""}/api/v1/webhooks/dlr/gatum</div>
+                <div className="text-slate-500 mt-1">Sempico → API → GET → "Webhook'a DLR gönderimi" alanına yapıştırıp Kaydet'e basın ve "Onay ile" kutusunu işaretleyin. Sistemde WEBHOOK_SECRET tanımlıysa adresin sonuna <span className="font-mono">?secret=DEĞER</span> ekleyin.</div>
+              </div>
+            )}
             <p className="text-[12px] text-slate-500 mb-3">{meta.hint} Kimlik bilgileri AES-256-GCM ile şifrelenir; düz metin saklanmaz ve hiçbir yere geri dönmez.</p>
             <div className="flex gap-2 flex-wrap">
               <button onClick={saveProvider} className="btn-primary px-6 py-2.5 text-sm">Kaydet</button>
