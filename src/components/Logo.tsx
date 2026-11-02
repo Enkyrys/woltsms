@@ -1,6 +1,6 @@
-export default function Logo({ compact = false }: { compact?: boolean }) {
+export default function Logo({ compact = false, href = "/panel/dashboard" }: { compact?: boolean; href?: string }) {
   return (
-    <a href="/panel/dashboard" className="flex items-center gap-2 select-none">
+    <a href={href} className="flex items-center gap-2 select-none">
       <svg width={compact ? 30 : 40} height={compact ? 30 : 40} viewBox="0 0 64 64" fill="none">
         <path d="M10 16c0-5 5-8.5 11-8.5h22c6 0 11 3.5 11 8.5v11c0 5-5 8.5-11 8.5h-4l-9 8.5v-8.5h-9c-6 0-11-3.5-11-8.5V16z" fill="#0FB5A0" />
         <path d="M17 17c0-3 3.5-5.5 8-5.5h14c4.5 0 8 2.5 8 5.5v8c0 3-3.5 5.5-8 5.5h-2.5L30 36v-5.5h-5c-4.5 0-8-2.5-8-5.5v-8z" fill="white" opacity=".92" />
