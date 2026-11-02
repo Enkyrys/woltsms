@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import Logo from "@/components/Logo";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("Admin123!");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -34,17 +34,6 @@ export default function LoginPage() {
           {err && <div className="text-red-600 text-sm mb-2">{err}</div>}
           <button disabled={loading} className="btn-primary w-full py-3 mt-2">{loading ? "Giriş yapılıyor..." : "Giriş Yap"}</button>
         </form>
-        <div className="mt-5 text-[12px] text-slate-500 bg-slate-50 rounded-lg p-3">
-          <div className="font-bold mb-1">Demo Hesaplar (seed.sql sonrası):</div>
-          <div>Admin: <b>admin</b> / Admin123!</div>
-          <div>Bayi: <b>demo</b> / Demo123!</div>
-          <div className="mt-2 leading-relaxed">
-            Veriler <code>supabase/seed.sql</code> ile yüklenir:
-            <code className="block mt-1">supabase db reset</code>
-            İlk admin&apos;i ayrıca <code>BOOTSTRAP_TOKEN</code> ile
-            <code> POST /api/seed/first-admin</code> üzerinden de oluşturabilirsiniz.
-          </div>
-        </div>
       </div>
     </div>
   );
