@@ -56,6 +56,8 @@ export default function SistemPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; level: string; message: string; latencyMs?: number } | null>(null);
   const [testPhone, setTestPhone] = useState("");
+  const [manBal, setManBal] = useState("");
+  const [manCur, setManCur] = useState("EUR");
 
   // announce
   const [anns, setAnns] = useState<{ id: string; text: string; isActive: boolean }[]>([]);
@@ -146,6 +148,17 @@ export default function SistemPage() {
     } catch (e) {
       setTestResult({ ok: false, level: "error", message: "Test başarısız: " + (e instanceof Error ? e.message : "hata") });
     } finally { setTesting(false); }
+  };
+
+  // Sağlayıcı (ör. Sempico) panelindeki bakiyeyi elle kaydet; Gatum GET API'si bakiye döndürmüyor
+  const saveManualBalance = async () => {
+    const r = await fetch("/api/panel/admin/settings", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set-provider-balance", provider: kind, balance: manBal, currency: manCur }),
+    });
+    const j = await r.json();
+    alert(j.message);
+    if (j.success) { setManBal(""); loadProviders(); }
   };
 
   const saveAnn = async () => {
@@ -240,6 +253,17 @@ export default function SistemPage() {
               <div className={`mt-3 text-[13px] rounded-lg p-3 border ${testResult.level === "success" ? "bg-green-50 border-green-200 text-green-800" : testResult.level === "warning" ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-red-50 border-red-200 text-red-800"}`}>
                 {testResult.level === "success" ? "✓ " : testResult.level === "warning" ? "⚠ " : "✕ "}{testResult.message}
                 {testResult.latencyMs ? <span className="opacity-70"> · {testResult.latencyMs} ms</span> : null}
+              </div>
+            )}
+
+            {kind === "gatum" && (
+              <div className="mt-3 text-[13px]">
+                <div className="text-slate-500 mb-1">Gatum GET API'si bakiye bilgisi vermez. Sempico panelinizdeki bakiyeyi buraya elle girebilirsiniz:</div>
+                <div className="flex gap-2 flex-wrap items-center">
+                  <input className="input !w-40" value={manBal} onChange={(e) => setManBal(e.target.value)} placeholder="Bakiye (örn. 25.50)" inputMode="decimal" />
+                  <select className="input !w-24" value={manCur} onChange={(e) => setManCur(e.target.value)}><option>EUR</option><option>USD</option><option>TRY</option></select>
+                  <button onClick={saveManualBalance} className="btn-outline px-4 py-2 text-sm">Bakiyeyi Kaydet</button>
+                </div>
               </div>
             )}
 

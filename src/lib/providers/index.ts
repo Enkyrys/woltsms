@@ -25,11 +25,15 @@ export async function hasActiveProvider(): Promise<boolean> {
 // Panel > Entegrasyonlar sekmesinde tanımlanır; kimlik bilgileri AES-256-GCM.
 export async function getActiveProvider(): Promise<ProviderInterface> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  // Birden fazla satır yanlışlıkla aktif olsa bile gerçek sağlayıcı (mock değil) tercih edilir;
+  // maybeSingle() çoklu satırda hata verip sessizce MockProvider'a düşüyordu.
+  const { data: rows, error } = await supabase
     .from("provider_settings")
     .select("*")
     .eq("is_active", true)
-    .maybeSingle();
+    .order("updated_at", { ascending: false })
+    .limit(5);
+  const data = rows?.find((r) => r.provider !== "mock") ?? rows?.[0] ?? null;
 
   if (error || !data) return new MockProvider(); // yapılandırma yoksa mock
 

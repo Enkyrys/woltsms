@@ -100,7 +100,7 @@ export async function GET(req: Request) {
       admin.from("system_settings").select("key", { head: true, count: "exact" }),
       admin.from("topup_requests").select("id", { head: true, count: "exact" }).eq("status", "pending"),
       admin.from("sms_messages").select("id", { head: true, count: "exact" }).eq("status", "queued"),
-      admin.from("provider_settings").select("provider, is_active, balance, balance_currency, last_balance_at, last_error").eq("is_active", true).maybeSingle(),
+      admin.from("provider_settings").select("provider, is_active, balance, balance_currency, last_balance_at, last_error").eq("is_active", true).order("updated_at", { ascending: false }).limit(1).then((r) => ({ data: r.data?.[0] ?? null })),
     ]);
     return ok({
       status: dbErr ? "degraded" : "ok",
@@ -247,6 +247,10 @@ export async function POST(req: Request) {
     if (body.credentials && typeof body.credentials === "object") {
       payload.credentials_encrypted = encrypt(JSON.stringify(body.credentials));
     }
+    // aynı anda yalnız tek sağlayıcı aktif olabilir
+    if (payload.is_active === true) {
+      await admin.from("provider_settings").update({ is_active: false }).neq("provider", provider);
+    }
     await admin.from("provider_settings").upsert({ provider, ...payload }, { onConflict: "provider" });
     await admin.from("audit_logs").insert({
       actor_id: s.id,
@@ -306,6 +310,21 @@ export async function POST(req: Request) {
       payload: { provider, mode, ok: result.ok, httpStatus: result.httpStatus ?? null } as never,
     });
     return ok(result, result.message);
+  }
+
+  // Gatum GET API'sinde bakiye ucu yok: admin sağlayıcı panelindeki bakiyeyi elle kaydeder
+  if (action === "set-provider-balance") {
+    if (!hasPermissionSync(s, "provider.manage") && !s.isAdmin) return forbidden();
+    const provider = String(body.provider || "");
+    const balance = Number(body.balance);
+    if (!provider || !isFinite(balance) || balance < 0) return badRequest("Geçerli bir bakiye girin.");
+    const currency = String(body.currency || "EUR").toUpperCase().slice(0, 5);
+    await admin
+      .from("provider_settings")
+      .update({ balance: String(balance), balance_currency: currency, last_balance_at: new Date().toISOString() })
+      .eq("provider", provider);
+    await admin.from("audit_logs").insert({ actor_id: s.id, action: "provider.balance_manual", payload: { provider, balance, currency } as never });
+    return ok({ balance, currency }, "Sağlayıcı bakiyesi kaydedildi.");
   }
 
   if (action === "set-active-provider") {
