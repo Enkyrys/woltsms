@@ -28,7 +28,7 @@ export default function Home() {
     <div className="min-h-screen bg-white text-slate-800">
       {/* üst bant */}
       <div className="bg-[#0FB5A0] text-white text-center text-[13px] py-2 px-4">
-        Toplu SMS&apos;te SMS başına sadece <b>₺{unit}</b> — Telegram veya WhatsApp kanalımızdan hemen ulaşın.
+        Toplu SMS&apos;te SMS başına sadece <b>₺{unit}</b> — Telegram veya WhatsApp ile hemen ulaşın.
       </div>
 
       {/* menü */}
@@ -150,22 +150,20 @@ export default function Home() {
           <p className="mt-2 text-white/85">Paket satın almak veya hesap açtırmak için bize yazın.</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-8 text-left">
             <a href={SITE.telegramUrl} target="_blank" rel="noopener noreferrer" className="bg-white text-slate-800 rounded-xl p-6 hover:shadow-xl transition block">
-              <div className="text-[12px] font-bold text-[#0FB5A0] tracking-wide">TELEGRAM KANALI</div>
+              <div className="text-[12px] font-bold text-[#0FB5A0] tracking-wide">TELEGRAM</div>
               <div className="text-xl font-extrabold mt-1">{SITE.telegramHandle}</div>
-              <div className="text-[13px] text-slate-500 mt-1">Duyurular, destek ve sipariş için</div>
+              <div className="text-[13px] text-slate-500 mt-1">Hızlı destek ve sipariş için</div>
             </a>
             <a href={SITE.whatsappUrl} target="_blank" rel="noopener noreferrer" className="bg-white text-slate-800 rounded-xl p-6 hover:shadow-xl transition block">
-              <div className="text-[12px] font-bold text-[#0FB5A0] tracking-wide">WHATSAPP KANALI</div>
-              <div className="text-xl font-extrabold mt-1">WOLTSMS</div>
-              <div className="text-[13px] text-slate-500 mt-1">Güncel haberler için kanalımıza katılın</div>
+              <div className="text-[12px] font-bold text-[#0FB5A0] tracking-wide">WHATSAPP</div>
+              <div className="text-xl font-extrabold mt-1">{SITE.whatsappNumber}</div>
+              <div className="text-[13px] text-slate-500 mt-1">Mesaj göndermek için dokunun</div>
             </a>
-            {SITE.email && (
-              <a href={mailUrl("WOLTSMS bilgi talebi")} className="bg-white text-slate-800 rounded-xl p-6 hover:shadow-xl transition block">
-                <div className="text-[12px] font-bold text-[#0FB5A0] tracking-wide">E-POSTA</div>
-                <div className="text-xl font-extrabold mt-1 break-all">{SITE.email}</div>
-                <div className="text-[13px] text-slate-500 mt-1">Teklif ve kurumsal talepler için</div>
-              </a>
-            )}
+            <a href={mailUrl("WOLTSMS bilgi talebi")} className="bg-white text-slate-800 rounded-xl p-6 hover:shadow-xl transition block">
+              <div className="text-[12px] font-bold text-[#0FB5A0] tracking-wide">E-POSTA</div>
+              <div className="text-xl font-extrabold mt-1 break-all">{SITE.email}</div>
+              <div className="text-[13px] text-slate-500 mt-1">Teklif ve kurumsal talepler için</div>
+            </a>
           </div>
           <a href="/login" className="inline-block mt-8 bg-white text-[#0A8F7E] font-bold rounded-lg px-7 py-3 hover:bg-[#e6faf7] transition">Zaten hesabınız var mı? Giriş Yap</a>
         </div>

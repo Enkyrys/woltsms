@@ -1,15 +1,14 @@
 // Ana sayfa (landing) ayarları — fiyat, paketler ve iletişim bilgileri tek yerden yönetilir.
-// E-posta için Vercel'de NEXT_PUBLIC_CONTACT_EMAIL ortam değişkenini girin (yeniden deploy gerekir).
 
 export const SITE = {
   name: "WOLTSMS",
   // SMS başına birim fiyat (TL). 0,35 TL = 35 kuruş
   pricePerSmsKurus: 35,
-  telegramUrl: "https://t.me/Woltbetresmii",
-  telegramHandle: "@Woltbetresmii",
-  whatsappUrl: "https://whatsapp.com/channel/0029Vb975mZIHphGn5lzbT0X",
-  // E-posta tanımlı değilse e-posta kartı ve bağlantıları gizlenir
-  email: process.env.NEXT_PUBLIC_CONTACT_EMAIL || "",
+  telegramHandle: "@WoltSmsAdmin",
+  telegramUrl: "https://t.me/WoltSmsAdmin",
+  whatsappNumber: "+995558213790",
+  whatsappUrl: "https://wa.me/995558213790",
+  email: "Enkyryyss@gmail.com",
 };
 
 // Paket adetleri (görseldeki adetler)
