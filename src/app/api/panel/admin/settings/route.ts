@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { getSession, hasPermissionSync } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { encrypt } from "@/lib/security";
+import { encrypt, decrypt } from "@/lib/security";
+import { GatumProvider } from "@/lib/providers/gatum";
+import { GenericHttpProvider } from "@/lib/providers/http";
 import { ok, unauthorized, forbidden, badRequest } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -252,6 +254,58 @@ export async function POST(req: Request) {
       payload: { provider, isActive: payload.is_active } as never,
     });
     return ok({ saved: true }, "Sağlayıcı ayarı kaydedildi. Kimlik bilgileri şifreli saklandı.");
+  }
+
+  // Sağlayıcı bağlantı testi (kaydetmez, aktif etmez).
+  // mode: "connection" → ücretsiz doğrulama | "sms" → tek gerçek test SMS'i (ücretlidir)
+  if (action === "test-provider") {
+    if (!hasPermissionSync(s, "provider.manage") && !s.isAdmin) return forbidden();
+    const provider = String(body.provider || "");
+    const mode = body.mode === "sms" ? "sms" : "connection";
+    const { data: row } = await admin.from("provider_settings").select("*").eq("provider", provider).maybeSingle();
+
+    const typed = (body.credentials && typeof body.credentials === "object" ? body.credentials : {}) as Record<string, string>;
+    let saved: Record<string, string> = {};
+    try { saved = row?.credentials_encrypted ? JSON.parse(decrypt(row.credentials_encrypted)) : {}; } catch { saved = {}; }
+    const creds = { ...saved, ...Object.fromEntries(Object.entries(typed).filter(([, v]) => String(v).trim() !== "")) };
+    const baseUrl = String(body.baseUrl || row?.base_url || "https://api.sempico.solutions");
+    const senderId = String(body.senderId || row?.sender_id || "WOLTSMS");
+
+    let result: { ok: boolean; level: string; message: string; latencyMs?: number; httpStatus?: number; providerMessageId?: string };
+
+    if (provider === "mock") {
+      result = { ok: true, level: "success", message: "Mock sağlayıcı: gerçek bağlantı yok, test amaçlıdır.", latencyMs: 0 };
+    } else if (provider === "gatum") {
+      const gatum = new GatumProvider({ baseUrl, senderId, credentialsJson: JSON.stringify(creds), config: (row?.config ?? {}) as never });
+      if (mode === "connection") {
+        result = await gatum.testConnection();
+      } else {
+        const phone = String(body.phone || "").replace(/\D/g, "");
+        if (phone.length < 8 || phone.length > 15) return badRequest("Geçerli bir telefon numarası girin (ülke koduyla, örn. 90555...).");
+        const started = Date.now();
+        const r = await gatum.sendSms(phone, String(body.text || "WOLTSMS test mesaji"));
+        result = r.ok
+          ? { ok: true, level: "success", latencyMs: Date.now() - started, providerMessageId: r.providerMessageId, message: `Test SMS sağlayıcıya iletildi (id_state: ${r.providerMessageId}).` }
+          : { ok: false, level: "error", latencyMs: Date.now() - started, message: `Gönderim reddedildi: ${r.error || r.errorCode}` };
+      }
+    } else {
+      try {
+        const started = Date.now();
+        const http = GenericHttpProvider.fromEncrypted({ baseUrl, senderId, credentialsEncrypted: row?.credentials_encrypted ?? null, config: (row?.config ?? {}) as never });
+        const bal = await http.getBalance();
+        result = { ok: true, level: "success", latencyMs: Date.now() - started, message: `Bağlantı başarılı. Bakiye: ${bal.balance} ${bal.currency}` };
+      } catch (e) {
+        result = { ok: false, level: "error", message: `Test başarısız: ${e instanceof Error ? e.message : "hata"}` };
+      }
+    }
+
+    // token/telefon loglanmaz
+    await admin.from("audit_logs").insert({
+      actor_id: s.id,
+      action: "provider.test",
+      payload: { provider, mode, ok: result.ok, httpStatus: result.httpStatus ?? null } as never,
+    });
+    return ok(result, result.message);
   }
 
   if (action === "set-active-provider") {

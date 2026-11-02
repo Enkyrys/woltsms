@@ -18,6 +18,15 @@ export type GatumCredentials = {
   securityKey?: string; // DLR API_KEY header doğrulaması için (ops.)
 };
 
+export type ConnectionTestResult = {
+  ok: boolean;
+  level: "success" | "warning" | "error";
+  httpStatus?: number;
+  latencyMs: number;
+  message: string;
+  detail?: unknown;
+};
+
 export type GatumConfig = {
   sendEndpoint?: string; // default /send
   lifetime?: number; // saniye, default 86400
@@ -169,6 +178,40 @@ export class GatumProvider implements ProviderInterface {
         error: e instanceof Error ? e.message : "Ağ hatası",
         retryable: true,
       };
+    }
+  }
+
+  // Bağlantı testi: SMS göndermez, ücret yazmaz.
+  // Dokümandaki GET /replacement ucunu kullanır (token + IP + API yetkisi doğrulanır).
+  async testConnection(opts?: { phone?: string; text?: string }): Promise<ConnectionTestResult> {
+    const started = Date.now();
+    if (!this.creds.token) {
+      return { ok: false, level: "error", latencyMs: 0, message: "API token girilmemiş." };
+    }
+    const url =
+      `${this.baseUrl}/replacement?` +
+      this.qs({
+        token: this.creds.token,
+        phone: opts?.phone || "905000000000",
+        senderID: this.senderId,
+        text: opts?.text || "WOLTSMS baglanti testi",
+      });
+    try {
+      const res = await fetchWithRetry(url, { method: "GET", timeoutMs: 10000, retries: 0, headers: { Accept: "application/json" } });
+      const latencyMs = Date.now() - started;
+      let body: unknown = null;
+      try { body = await res.json(); } catch { body = null; }
+      const err = (body as { error?: string } | null)?.error;
+
+      if (res.status === 401) return { ok: false, level: "error", httpStatus: 401, latencyMs, message: "Token hatalı veya aktif bir müşteriye ait değil (401).", detail: body };
+      if (res.status === 403) return { ok: false, level: "error", httpStatus: 403, latencyMs, message: `Erişim reddedildi (403): ${err || "IP beyaz listede değil ya da hesapta/tarifede API kapalı."}`, detail: body };
+      if (res.ok) return { ok: true, level: "success", httpStatus: res.status, latencyMs, message: "Bağlantı başarılı: token doğrulandı, API erişimi açık.", detail: body };
+      // 400: kimlik doğrulama geçti (aksi halde 401/403 gelirdi); istek içeriği reddedildi
+      if (res.status === 400) return { ok: true, level: "warning", httpStatus: 400, latencyMs, message: `Token doğrulandı, ancak test isteği reddedildi: ${err || "bilinmeyen neden"}. Gerçek gönderimde sorun olmayabilir.`, detail: body };
+      return { ok: false, level: "error", httpStatus: res.status, latencyMs, message: `Beklenmeyen yanıt (HTTP ${res.status}).`, detail: body };
+    } catch (e) {
+      const aborted = e instanceof Error && e.name === "AbortError";
+      return { ok: false, level: "error", latencyMs: Date.now() - started, message: aborted ? "Zaman aşımı: sağlayıcıya 10 sn içinde ulaşılamadı." : `Sağlayıcıya ulaşılamadı: ${e instanceof Error ? e.message : "ağ hatası"}` };
     }
   }
 

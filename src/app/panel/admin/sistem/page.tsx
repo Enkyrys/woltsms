@@ -54,7 +54,8 @@ export default function SistemPage() {
   const [creds, setCreds] = useState<Record<string, string>>({});
   const [sendEndpoint, setSendEndpoint] = useState("/send");
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<string>("");
+  const [testResult, setTestResult] = useState<{ ok: boolean; level: string; message: string; latencyMs?: number } | null>(null);
+  const [testPhone, setTestPhone] = useState("");
 
   // announce
   const [anns, setAnns] = useState<{ id: string; text: string; isActive: boolean }[]>([]);
@@ -126,16 +127,24 @@ export default function SistemPage() {
     if (j.success) loadProviders();
   };
 
-  const testProvider = async () => {
-    setTesting(true); setTestResult("");
+  // Kaydetmeden, yazılan (yoksa kayıtlı) bilgilerle bağlantıyı dener.
+  // mode "connection": ücretsiz doğrulama; mode "sms": gerçek (ücretli) tek test SMS'i
+  const testProvider = async (mode: "connection" | "sms" = "connection") => {
+    if (mode === "sms") {
+      if (!testPhone.trim()) { alert("Test SMS'i için telefon numarası girin (ülke koduyla)."); return; }
+      if (!confirm(`${testPhone} numarasına GERÇEK bir test SMS'i gönderilecek ve sağlayıcıda ücretlendirilecek. Devam edilsin mi?`)) return;
+    }
+    setTesting(true); setTestResult(null);
     try {
-      await saveProvider();
-      const r = await fetch("/api/internal/worker", { method: "POST", headers: { "Content-Type": "application/json" } });
+      const filled = Object.fromEntries(Object.entries(creds).filter(([, v]) => String(v).trim() !== ""));
+      const r = await fetch("/api/panel/admin/settings", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test-provider", provider: kind, mode, baseUrl, senderId, phone: testPhone, credentials: filled }),
+      });
       const j = await r.json();
-      const bal = j?.data?.providerBalance;
-      setTestResult(bal != null ? `Sağlayıcı bağlantısı başarılı. Bakiye: ${bal}` : "Sağlayıcı çağrıldı; bakiye döndürülmedi (desteklenmiyor olabilir).");
+      setTestResult(j.success ? j.data : { ok: false, level: "error", message: j.message || "Test başarısız." });
     } catch (e) {
-      setTestResult("Test başarısız: " + (e instanceof Error ? e.message : "hata"));
+      setTestResult({ ok: false, level: "error", message: "Test başarısız: " + (e instanceof Error ? e.message : "hata") });
     } finally { setTesting(false); }
   };
 
@@ -217,11 +226,22 @@ export default function SistemPage() {
             <p className="text-[12px] text-slate-500 mb-3">{meta.hint} Kimlik bilgileri AES-256-GCM ile şifrelenir; düz metin saklanmaz ve hiçbir yere geri dönmez.</p>
             <div className="flex gap-2 flex-wrap">
               <button onClick={saveProvider} className="btn-primary px-6 py-2.5 text-sm">Kaydet</button>
-              <button onClick={testProvider} disabled={testing} className="px-6 py-2.5 text-sm font-bold rounded-lg bg-orange-500 text-white disabled:opacity-50">
-                {testing ? "Test ediliyor..." : "Bakiye Sorgulama & Test"}
+              <button onClick={() => testProvider("connection")} disabled={testing} className="px-6 py-2.5 text-sm font-bold rounded-lg bg-orange-500 text-white disabled:opacity-50">
+                {testing ? "Test ediliyor..." : "Bağlantıyı Test Et"}
               </button>
             </div>
-            {testResult && <p className="text-[13px] mt-2 text-slate-700">{testResult}</p>}
+            {kind !== "mock" && (
+              <div className="flex gap-2 flex-wrap items-center mt-3">
+                <input className="input !w-56" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="Test numarası: 90555..." />
+                <button onClick={() => testProvider("sms")} disabled={testing} className="btn-outline px-4 py-2 text-sm disabled:opacity-50">Test SMS Gönder (ücretli)</button>
+              </div>
+            )}
+            {testResult && (
+              <div className={`mt-3 text-[13px] rounded-lg p-3 border ${testResult.level === "success" ? "bg-green-50 border-green-200 text-green-800" : testResult.level === "warning" ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-red-50 border-red-200 text-red-800"}`}>
+                {testResult.level === "success" ? "✓ " : testResult.level === "warning" ? "⚠ " : "✕ "}{testResult.message}
+                {testResult.latencyMs ? <span className="opacity-70"> · {testResult.latencyMs} ms</span> : null}
+              </div>
+            )}
 
             <div className="mt-4 text-[13px]">
               {providers.map((p) => (
