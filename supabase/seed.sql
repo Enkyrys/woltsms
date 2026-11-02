@@ -58,8 +58,8 @@ end $$;
 
 -- varsayılan sağlayıcı satırı (admin panelinden yapılandırılır)
 insert into public.provider_settings (provider, base_url, sender_id, is_active, config)
-values ('gatum', 'https://api.sempico.solutions', 'WOLTSMS', false,
-        '{"send_endpoint":"/send","balance_endpoint":"/balance","timeout_ms":15000,"max_retries":2}'::jsonb)
+values ('gatum', 'https://restapi.sempico.solutions/v1', 'WOLTSMS', false,
+        '{"send_endpoint":"/send","campaign":"WOLTSMS","timeout_ms":15000,"max_retries":2}'::jsonb)
 on conflict (provider) do nothing;
 
 insert into public.provider_settings (provider, base_url, sender_id, is_active, config)

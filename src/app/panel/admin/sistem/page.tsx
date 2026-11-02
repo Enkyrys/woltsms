@@ -24,11 +24,16 @@ const PROVIDER_META: Record<string, { label: string; hint: string; fields: { key
     fields: [],
   },
   gatum: {
-    label: "Gatum SMS (sempico.solutions)",
-    hint: "GET /send API'si. DLR callback_url ile gelir; güvenlik anahtarı API_KEY header'ı ile doğrulanır.",
+    label: "Gatum SMS (REST API)",
+    hint:
+      "REST API v1: kullanıcı adı/şifre ile /authorize → /access-token alınır, isteklerde X-Access-Token kullanılır. " +
+      "Gönderim POST /send (istek başına en fazla 100 numara), bakiye GET /me (IP başına 15 dk'da 1 istek), " +
+      "bağlantı testi ücretsiz POST /replacement ile yapılır.",
     fields: [
-      { key: "token", label: "Token (Dashboard'da oluşturulan)", placeholder: "gbBX8dB7kDvBeo0H-..." },
-      { key: "securityKey", label: "Güvenlik Anahtarı (opsiyonel, DLR API_KEY)", placeholder: "Hesapta tanımlıysa" },
+      { key: "username", label: "Kullanıcı Adı (hesap girişi)", placeholder: "Gatum/Sempico panel girişi" },
+      { key: "password", label: "Şifre", placeholder: "Hesap şifresi", type: "password" },
+      { key: "accessToken", label: "Access Token (opsiyonel — şifre yerine)", placeholder: "Şifre yerine doğrudan token", type: "password" },
+      { key: "securityKey", label: "Güvenlik Anahtarı (opsiyonel, DLR API_KEY)", placeholder: "Hesapta tanımlıysa", type: "password" },
     ],
   },
   http: {
@@ -36,7 +41,7 @@ const PROVIDER_META: Record<string, { label: string; hint: string; fields: { key
     hint: "Herhangi bir JSON SMS API'si. Uçlar ve şablonlar config üzerinden tanımlanır.",
     fields: [
       { key: "apiKey", label: "API Key", placeholder: "Bearer token" },
-      { key: "secret", label: "Secret (opsiyonel)", placeholder: "HMAC/ek anahtar" },
+      { key: "secret", label: "Secret (opsiyonel)", placeholder: "HMAC/ek anahtar", type: "password" },
     ],
   },
 };
@@ -49,16 +54,19 @@ export default function SistemPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [active, setActive] = useState("mock");
   const [kind, setKind] = useState<"mock" | "gatum" | "http">("mock");
-  const [baseUrl, setBaseUrl] = useState("https://api.sempico.solutions");
+  const [baseUrl, setBaseUrl] = useState("https://restapi.sempico.solutions/v1");
   const [senderId, setSenderId] = useState("WOLTSMS");
   const [threshold, setThreshold] = useState("1000");
   const [creds, setCreds] = useState<Record<string, string>>({});
   const [sendEndpoint, setSendEndpoint] = useState("/send");
+  const [campaign, setCampaign] = useState("WOLTSMS");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; level: string; message: string; latencyMs?: number } | null>(null);
   const [testPhone, setTestPhone] = useState("");
   const [manBal, setManBal] = useState("");
   const [manCur, setManCur] = useState("EUR");
+  const [balRefreshing, setBalRefreshing] = useState(false);
+  const [balMsg, setBalMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // announce
   const [anns, setAnns] = useState<{ id: string; text: string; isActive: boolean }[]>([]);
@@ -89,12 +97,12 @@ export default function SistemPage() {
           setSenderId(a.senderId || "WOLTSMS");
           setThreshold(String(a.lowBalanceThreshold ?? "1000"));
           setSendEndpoint(String(a.config?.send_endpoint ?? "/send"));
+          setCampaign(String(a.config?.campaign ?? "WOLTSMS"));
         }
       }
     });
 
   useEffect(() => {
-    setLoading(true);
     loadProviders().finally(() => setLoading(false));
     fetch("/api/panel/admin/settings?scope=announce").then(async (r) => { const j = await r.json(); if (j.success) setAnns(j.data); });
     fetch("/api/panel/admin/settings?scope=system").then(async (r) => { const j = await r.json(); if (j.success) setSys(j.data); });
@@ -104,6 +112,21 @@ export default function SistemPage() {
 
   const meta = PROVIDER_META[kind];
 
+  // Sekme değiştirince o sağlayıcının kayıtlı satırı yüklenir (kaydedilmemiş girişler temizlenir)
+  const pickProvider = (k: "mock" | "gatum" | "http") => {
+    setKind(k);
+    setTestResult(null);
+    setBalMsg(null);
+    setCreds({});
+    const row = providers.find((x) => x.provider === k);
+    const fallbackUrl = k === "gatum" ? "https://restapi.sempico.solutions/v1" : "";
+    setBaseUrl(row?.baseUrl || fallbackUrl);
+    setSenderId(row?.senderId || "WOLTSMS");
+    setThreshold(String(row?.lowBalanceThreshold ?? "1000"));
+    setSendEndpoint(String(row?.config?.send_endpoint ?? "/send"));
+    setCampaign(String(row?.config?.campaign ?? "WOLTSMS"));
+  };
+
   const saveProvider = async () => {
     const body: Record<string, unknown> = {
       action: "save-provider",
@@ -112,7 +135,7 @@ export default function SistemPage() {
       senderId,
       isActive: true,
       lowBalanceThreshold: threshold,
-      config: { send_endpoint: sendEndpoint },
+      config: kind === "gatum" ? { send_endpoint: sendEndpoint, campaign } : { send_endpoint: sendEndpoint },
     };
     // yalnız girilen kimlik bilgileri şifrelenir
     const filled = Object.fromEntries(Object.entries(creds).filter(([, v]) => String(v).trim() !== ""));
@@ -151,7 +174,28 @@ export default function SistemPage() {
     } finally { setTesting(false); }
   };
 
-  // Sağlayıcı (ör. Sempico) panelindeki bakiyeyi elle kaydet; Gatum GET API'si bakiye döndürmüyor
+  // Sağlayıcıdan bakiye çek (Gatum REST API: GET /me). 15 dakikada 1 istek sınırı
+  // sunucuda uygulanır; pencere dolmadan istek gelirse kayıtlı değer döner.
+  const refreshBalance = async () => {
+    setBalRefreshing(true);
+    setBalMsg(null);
+    try {
+      const r = await fetch("/api/panel/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "refresh-provider-balance", provider: kind }),
+      });
+      const j = await r.json();
+      setBalMsg({ ok: !!j.success, text: j.message || (j.success ? "Bakiye güncellendi." : "Bakiye sorgulanamadı.") });
+      if (j.success) loadProviders();
+    } catch (e) {
+      setBalMsg({ ok: false, text: "Bakiye sorgulanamadı: " + (e instanceof Error ? e.message : "hata") });
+    } finally {
+      setBalRefreshing(false);
+    }
+  };
+
+  // API'den dönemeyen durumlar için: sağlayıcı panelindeki bakiyeyi elle kaydet
   const saveManualBalance = async () => {
     const r = await fetch("/api/panel/admin/settings", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -197,15 +241,15 @@ export default function SistemPage() {
             <h3 className="font-bold mb-2">Aktif Sağlayıcı</h3>
             <div className="flex gap-2 mb-4 flex-wrap">
               {(Object.keys(PROVIDER_META) as (keyof typeof PROVIDER_META)[]).map((k) => (
-                <button key={k} onClick={() => setKind(k as "mock" | "gatum" | "http")} className={`px-5 py-2 rounded-lg text-sm font-bold ${kind === k ? "tab-active" : "bg-slate-100"}`}>
+                <button key={k} onClick={() => pickProvider(k as "mock" | "gatum" | "http")} className={`px-5 py-2 rounded-lg text-sm font-bold ${kind === k ? "tab-active" : "bg-slate-100"}`}>
                   {PROVIDER_META[k].label}
                 </button>
               ))}
             </div>
 
             <div className="grid md:grid-cols-2 gap-3">
-              <Field label="Base URL">
-                <input className="input" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.sempico.solutions" />
+              <Field label={kind === "gatum" ? "Base URL (REST API)" : "Base URL"}>
+                <input className="input" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://restapi.sempico.solutions/v1" />
               </Field>
               <Field label="Gönderen (senderID)">
                 <input className="input" value={senderId} onChange={(e) => setSenderId(e.target.value)} />
@@ -213,6 +257,11 @@ export default function SistemPage() {
               {kind !== "mock" && (
                 <Field label="Gönderim Ucu">
                   <input className="input" value={sendEndpoint} onChange={(e) => setSendEndpoint(e.target.value)} placeholder="/send" />
+                </Field>
+              )}
+              {kind === "gatum" && (
+                <Field label="Kampanya adı (campaign, istatistik grubu)">
+                  <input className="input" value={campaign} onChange={(e) => setCampaign(e.target.value)} placeholder="WOLTSMS" />
                 </Field>
               )}
               <Field label="Düşük Bakiye Eşiği">
@@ -226,7 +275,7 @@ export default function SistemPage() {
                   <Field key={f.key} label={f.label}>
                     <input
                       className="input"
-                      type={f.type || (f.key.toLowerCase().includes("secret") || f.key === "token" ? "password" : "text")}
+                      type={f.type || "text"}
                       value={creds[f.key] || ""}
                       onChange={(e) => setCreds({ ...creds, [f.key]: e.target.value })}
                       placeholder={providers.find((x) => x.provider === kind)?.hasCredentials ? "•••••••••••• (şifreli kayıtlı — değiştirmek için yeni değer girin)" : f.placeholder}
@@ -239,9 +288,15 @@ export default function SistemPage() {
 
             {kind === "gatum" && (
               <div className="text-[12px] bg-slate-50 border rounded-lg p-3 mb-3">
-                <div className="font-bold mb-1">İleti durumları (DLR) için Sempico paneline girilecek adres</div>
+                <div className="font-bold mb-1">İleti durumları (DLR) için Sempico/Gatum paneline girilecek adres</div>
                 <div className="font-mono break-all select-all">{typeof window !== "undefined" ? window.location.origin : ""}/api/v1/webhooks/dlr/gatum</div>
-                <div className="text-slate-500 mt-1">Sempico → API → GET → "Webhook'a DLR gönderimi" alanına yapıştırıp Kaydet'e basın ve "Onay ile" kutusunu işaretleyin. Sistemde WEBHOOK_SECRET tanımlıysa adresin sonuna <span className="font-mono">?secret=DEĞER</span> ekleyin.</div>
+                <div className="text-slate-500 mt-1">
+                  REST API, teslimat raporlarını bu adrese <b>JSON dizisi</b> olarak POST eder; hesapta onay modu açıksa sistem
+                  onaylanan id_state listesini JSON dizisi olarak yanıtlar. Hesapta güvenlik anahtarı tanımlıysa istekler
+                  <span className="font-mono"> API_KEY</span> başlığıyla gelir ve aynı anahtarla eşleştirilir. Ek katman için
+                  <span className="font-mono"> WEBHOOK_SECRET</span> tanımlıysa adresin sonuna
+                  <span className="font-mono"> ?secret=DEĞER</span> ekleyin.
+                </div>
               </div>
             )}
             <p className="text-[12px] text-slate-500 mb-3">{meta.hint} Kimlik bilgileri AES-256-GCM ile şifrelenir; düz metin saklanmaz ve hiçbir yere geri dönmez.</p>
@@ -266,7 +321,25 @@ export default function SistemPage() {
 
             {kind === "gatum" && (
               <div className="mt-3 text-[13px]">
-                <div className="text-slate-500 mb-1">Gatum GET API'si bakiye bilgisi vermez. Sempico panelinizdeki bakiyeyi buraya elle girebilirsiniz:</div>
+                <div className="flex gap-3 flex-wrap items-center">
+                  <button onClick={refreshBalance} disabled={balRefreshing} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">
+                    {balRefreshing ? "Sorgulanıyor..." : "Bakiyeyi Sorgula (GET /me)"}
+                  </button>
+                  <span className="text-slate-500 text-[12px]">
+                    Son sorgu:{" "}
+                    {providers.find((p) => p.provider === "gatum")?.lastBalanceAt
+                      ? new Date(String(providers.find((p) => p.provider === "gatum")?.lastBalanceAt)).toLocaleString("tr-TR")
+                      : "-"}
+                    {" · "}Sağlayıcı sınırı 15 dakikada 1 istek
+                  </span>
+                </div>
+                {balMsg && (
+                  <div className={`mt-2 rounded-lg p-2 border text-[13px] ${balMsg.ok ? "bg-green-50 border-green-200 text-green-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
+                    {balMsg.ok ? "✓ " : "⚠ "}
+                    {balMsg.text}
+                  </div>
+                )}
+                <div className="text-slate-500 mt-3 mb-1">API&apos;den dönemiyorsa sağlayıcı panelindeki bakiyeyi elle girebilirsiniz:</div>
                 <div className="flex gap-2 flex-wrap items-center">
                   <input className="input !w-40" value={manBal} onChange={(e) => setManBal(e.target.value)} placeholder="Bakiye (örn. 25.50)" inputMode="decimal" />
                   <select className="input !w-24" value={manCur} onChange={(e) => setManCur(e.target.value)}><option>EUR</option><option>USD</option><option>TRY</option></select>
@@ -280,7 +353,10 @@ export default function SistemPage() {
                 <div key={p.provider} className="border rounded-lg p-2 mb-1 flex justify-between gap-2 flex-wrap">
                   <span><b>{PROVIDER_META[p.provider]?.label || p.provider}</b> {p.isActive ? "(aktif)" : ""}</span>
                   <span className="flex items-center gap-3">
-                    <span>Bakiye: {p.balance ?? "-"} {p.balanceCurrency ?? ""} · Eşik: {p.lowBalanceThreshold}</span>
+                    <span className="text-right">
+                      <span>Bakiye: {p.balance ?? "-"} {p.balanceCurrency ?? ""} · Eşik: {p.lowBalanceThreshold}</span>
+                      {p.lastError && <span className="block text-red-600 text-[11px]">{p.lastError}</span>}
+                    </span>
                     {!p.isActive && (
                       <button onClick={() => activate(p.provider)} className="text-[#0FB5A0] font-bold text-[12px]">Aktif Yap</button>
                     )}

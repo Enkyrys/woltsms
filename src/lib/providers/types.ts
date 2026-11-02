@@ -31,7 +31,10 @@ export interface ProviderInterface {
   parseDlrWebhook(payload: unknown, headers: Record<string, string>): DlrItem[];
 }
 
-// Sağlayıcı hata kodlarının iç duruma karşılığı
+// Sağlayıcı hata kodlarının iç duruma karşılığı.
+// Anahtarlar Gatum REST API v1 `errors` alanındaki kodların kendisidir
+// (büyük/küçük harf duyarsız eşleşir), serbest metinler için alt-satır
+// parçaları da ayrıca denenir.
 export const PROVIDER_ERROR_MAP: Record<string, { code: string; retryable: boolean }> = {
   no_money: { code: "PROVIDER_NO_MONEY", retryable: true },
   phone_in_black_list: { code: "PROVIDER_BLACKLIST", retryable: false },
@@ -45,11 +48,32 @@ export const PROVIDER_ERROR_MAP: Record<string, { code: string; retryable: boole
   blocked_shortener_rule: { code: "PROVIDER_BLOCKED_TEXT", retryable: false },
   undefined_code: { code: "PROVIDER_UNDEFINED", retryable: false },
   "rejected by daily limit": { code: "PROVIDER_DAILY_LIMIT", retryable: true },
+
+  // REST API v1 ek kodları
+  incorrect_originator: { code: "PROVIDER_BLOCKED_SENDER", retryable: false },
+  not_registr_originator: { code: "PROVIDER_BLOCKED_SENDER", retryable: false },
+  blocked_by_moderation: { code: "PROVIDER_BLOCKED_TEXT", retryable: false },
+  unsupported_encoding: { code: "PROVIDER_BAD_TEXT", retryable: false },
+  no_sms: { code: "PROVIDER_BAD_REQUEST", retryable: false },
+  user_not_allowed_sending_to_this_aggregator: { code: "PROVIDER_NO_ROUTE", retryable: false },
+  reseller_not_allowed_sending_to_this_aggregator: { code: "PROVIDER_NO_ROUTE", retryable: false },
+  no_reseller_price: { code: "PROVIDER_NO_PRICE", retryable: false },
+  reseller_no_money: { code: "PROVIDER_NO_MONEY", retryable: false },
+  reseller_blocked: { code: "PROVIDER_FORBIDDEN", retryable: false },
+  undefined_reseller: { code: "PROVIDER_FORBIDDEN", retryable: false },
+  "no sms was sent": { code: "PROVIDER_BAD_REQUEST", retryable: false },
+  "too many sms in one request (max 100)": { code: "PROVIDER_BAD_REQUEST", retryable: false },
 };
 
 export function mapProviderError(raw: string): { code: string; retryable: boolean } {
-  const key = String(raw || "").toLowerCase().trim();
-  return PROVIDER_ERROR_MAP[key] || { code: "PROVIDER_ERROR", retryable: true };
+  const full = String(raw || "").toLowerCase().trim();
+  if (!full) return { code: "PROVIDER_ERROR", retryable: true };
+  if (PROVIDER_ERROR_MAP[full]) return PROVIDER_ERROR_MAP[full];
+  // serbest metin ("Gönderim reddedildi: no_money" gibi) kelimelerinde ayrıca dene
+  for (const key of Object.keys(PROVIDER_ERROR_MAP)) {
+    if (key.length > 3 && full.includes(key)) return PROVIDER_ERROR_MAP[key];
+  }
+  return { code: "PROVIDER_ERROR", retryable: true };
 }
 
 // fetch with timeout + sınırlı yeniden deneme (üstel bekleme)

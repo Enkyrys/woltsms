@@ -21,7 +21,9 @@ export default function KrediYuklePage() {
   const [txid, setTxid] = useState("");
   const [sentAmount, setSentAmount] = useState("");
   const [fromAddr, setFromAddr] = useState("");
-  const [qr, setQr] = useState("");
+  // QR yalnızca async üretilir; hangi adres için üretildiğini tutuyoruz ki
+  // effect içinde senkron setState çağrılmasın ve eski QR yeni talepte görünmesin.
+  const [qr, setQr] = useState<{ addr: string; data: string }>({ addr: "", data: "" });
 
   const load = (p = 1, pp = perPage) => {
     fetch(`/api/panel/topup?page=${p}&perPage=${pp}`).then(async (r) => {
@@ -38,12 +40,18 @@ export default function KrediYuklePage() {
   }, []);
 
   useEffect(() => {
-    if (created?.request?.walletAddressSnapshot) {
-      import("qrcode").then((QR) => {
-        QR.toDataURL(created.request.walletAddressSnapshot, { width: 180 }).then(setQr).catch(() => setQr(""));
-      });
-    } else setQr("");
+    const addr = created?.request?.walletAddressSnapshot;
+    if (!addr) return;
+    let alive = true;
+    import("qrcode").then((QR) => {
+      QR.toDataURL(addr, { width: 180 })
+        .then((data) => { if (alive) setQr({ addr, data }); })
+        .catch(() => { if (alive) setQr({ addr, data: "" }); });
+    });
+    return () => { alive = false; };
   }, [created]);
+
+  const qrData = qr.addr === (created?.request?.walletAddressSnapshot ?? "") ? qr.data : "";
 
   // Fiş doğrudan Supabase Storage'a imzalı URL ile yüklenir (Vercel gövde sınırı aşılmaz)
   const uploadReceipt = async (f: File): Promise<string | null> => {
@@ -166,7 +174,7 @@ export default function KrediYuklePage() {
             <button onClick={() => setCreated(null)} className="text-sm text-slate-500">✕ Kapat</button>
           </div>
           <div className="grid md:grid-cols-[200px_1fr] gap-4">
-            <div>{qr ? <img src={qr} alt="QR" className="border rounded-lg" /> : <div className="w-[180px] h-[180px] grid place-items-center bg-slate-100 rounded-lg text-sm">QR yükleniyor...</div>}</div>
+            <div>{qrData ? <img src={qrData} alt="QR" className="border rounded-lg" /> : <div className="w-[180px] h-[180px] grid place-items-center bg-slate-100 rounded-lg text-sm">QR yükleniyor...</div>}</div>
             <div className="text-[14px] space-y-2">
               <div><b>Coin/Ağ:</b> {created.asset?.asset} / {created.asset?.network}</div>
               <div className="flex items-center gap-2 flex-wrap"><b>Cüzdan:</b> <span className="font-mono text-[12px] break-all">{created.request.walletAddressSnapshot}</span> <CopyBtn text={created.request.walletAddressSnapshot} /></div>

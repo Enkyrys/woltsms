@@ -41,7 +41,7 @@ export default function LoginPage() {
           <div className="mt-2 leading-relaxed">
             Veriler <code>supabase/seed.sql</code> ile yüklenir:
             <code className="block mt-1">supabase db reset</code>
-            İlk admin'i ayrıca <code>BOOTSTRAP_TOKEN</code> ile
+            İlk admin&apos;i ayrıca <code>BOOTSTRAP_TOKEN</code> ile
             <code> POST /api/seed/first-admin</code> üzerinden de oluşturabilirsiniz.
           </div>
         </div>

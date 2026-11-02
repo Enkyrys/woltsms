@@ -518,28 +518,59 @@ async function processImportJobs(limit = 3): Promise<number> {
   return done;
 }
 
+// Sağlayıcı bakiye sorgusunun en az aralığı.
+// Gatum REST API: GET /me IP başına 15 dakikada 1 istek (aşarsa 429).
+export const PROVIDER_BALANCE_MIN_INTERVAL_MS = 15 * 60_000;
+
+// Sıcak fonksiyon örneğinde başarısız denemelerin de o aralığı zorlaması için
+let lastBalanceAttemptAt = 0;
+
 // ana sağlayıcı bakiye kontrolü + eşik altı bildirim
 export async function checkProviderBalance(): Promise<number | null> {
   const admin = createAdminClient();
   const provider = await getActiveProvider();
+
+  const { data: settings } = await admin
+    .from("provider_settings")
+    .select("low_balance_threshold, balance, balance_currency, last_balance_at")
+    .eq("provider", provider.name)
+    .maybeSingle();
+
+  const cached = settings?.balance != null && Number.isFinite(Number(settings.balance)) ? Number(settings.balance) : null;
+  const lastAt = settings?.last_balance_at ? Date.parse(settings.last_balance_at) : 0;
+  const recentAttempt = lastBalanceAttemptAt && Date.now() - lastBalanceAttemptAt < PROVIDER_BALANCE_MIN_INTERVAL_MS;
+  if ((lastAt && Date.now() - lastAt < PROVIDER_BALANCE_MIN_INTERVAL_MS) || recentAttempt) {
+    return cached; // limit penceresi dolmadı: kayıtlı değerle devam
+  }
+
+  lastBalanceAttemptAt = Date.now();
   let balance: number;
+  let currency: string | null = null;
   try {
     const b = await provider.getBalance();
     balance = b.balance;
-  } catch {
-    return null;
+    currency = b.currency || null;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "bilinmeyen hata";
+    // 429 (rate limit) normal: sıradaki pencerede tekrar denenir, hata yazma
+    if (!msg.includes("BALANCE_RATE_LIMITED")) {
+      await admin
+        .from("provider_settings")
+        .update({ last_error: msg.slice(0, 500) })
+        .eq("provider", provider.name);
+    }
+    return cached;
   }
 
   await admin
     .from("provider_settings")
-    .update({ balance: String(balance), last_balance_at: new Date().toISOString() })
+    .update({
+      balance: String(balance),
+      ...(currency ? { balance_currency: currency } : {}),
+      last_balance_at: new Date().toISOString(),
+      last_error: null,
+    })
     .eq("provider", provider.name);
-
-  const { data: settings } = await admin
-    .from("provider_settings")
-    .select("low_balance_threshold")
-    .eq("provider", provider.name)
-    .maybeSingle();
 
   const threshold = Number(settings?.low_balance_threshold ?? 1000);
   if (balance < threshold) {
@@ -557,7 +588,7 @@ export async function checkProviderBalance(): Promise<number | null> {
           user_id: id,
           type: "provider_low_balance",
           title: "Sağlayıcı Bakiyesi Düşük",
-          body: `${provider.name} sağlayıcı bakiyesi ${balance} (${threshold} eşik altı).`,
+          body: `${provider.name} sağlayıcı bakiyesi ${balance}${settings?.balance_currency ? ` ${settings.balance_currency}` : ""} (eşik ${threshold} altına düştü).`,
         }))
       );
     }

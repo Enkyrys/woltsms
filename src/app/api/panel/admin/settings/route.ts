@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { encrypt, decrypt } from "@/lib/security";
 import { GatumProvider } from "@/lib/providers/gatum";
 import { GenericHttpProvider } from "@/lib/providers/http";
+import { getProviderByName } from "@/lib/providers";
+import { PROVIDER_BALANCE_MIN_INTERVAL_MS } from "@/lib/services";
 import { ok, unauthorized, forbidden, badRequest } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -272,7 +274,7 @@ export async function POST(req: Request) {
     let saved: Record<string, string> = {};
     try { saved = row?.credentials_encrypted ? JSON.parse(decrypt(row.credentials_encrypted)) : {}; } catch { saved = {}; }
     const creds = { ...saved, ...Object.fromEntries(Object.entries(typed).filter(([, v]) => String(v).trim() !== "")) };
-    const baseUrl = String(body.baseUrl || row?.base_url || "https://api.sempico.solutions");
+    const baseUrl = String(body.baseUrl || row?.base_url || "https://restapi.sempico.solutions/v1");
     const senderId = String(body.senderId || row?.sender_id || "WOLTSMS");
 
     let result: { ok: boolean; level: string; message: string; latencyMs?: number; httpStatus?: number; providerMessageId?: string };
@@ -312,7 +314,7 @@ export async function POST(req: Request) {
     return ok(result, result.message);
   }
 
-  // Gatum GET API'sinde bakiye ucu yok: admin sağlayıcı panelindeki bakiyeyi elle kaydeder
+  // Elle bakiye girişi: API'den okunamayan/okunmak istenmeyen durumlar için yedek yol
   if (action === "set-provider-balance") {
     if (!hasPermissionSync(s, "provider.manage") && !s.isAdmin) return forbidden();
     const provider = String(body.provider || "");
@@ -324,7 +326,56 @@ export async function POST(req: Request) {
       .update({ balance: String(balance), balance_currency: currency, last_balance_at: new Date().toISOString() })
       .eq("provider", provider);
     await admin.from("audit_logs").insert({ actor_id: s.id, action: "provider.balance_manual", payload: { provider, balance, currency } as never });
-    return ok({ balance, currency }, "Sağlayıcı bakiyesi kaydedildi.");
+    return ok({ balance, currency, refreshed: false }, "Sağlayıcı bakiyesi kaydedildi.");
+  }
+
+  // Bakiyeyi sağlayıcı API'sinden çek (Gatum: GET /me → balance_units + currency).
+  // Doküman: /me IP başına 15 dakikada 1 istek → bu pencere dolmadan tekrar sorgulanmaz.
+  if (action === "refresh-provider-balance") {
+    if (!hasPermissionSync(s, "provider.manage") && !s.isAdmin) return forbidden();
+    const provider = String(body.provider || "");
+    if (!provider) return badRequest("provider gerekli.");
+    const { data: row } = await admin.from("provider_settings").select("*").eq("provider", provider).maybeSingle();
+    if (!row) return badRequest("Sağlayıcı bulunamadı.");
+
+    const lastAt = row.last_balance_at ? Date.parse(row.last_balance_at) : 0;
+    const sinceMs = lastAt ? Date.now() - lastAt : Number.POSITIVE_INFINITY;
+    if (body.force !== true && sinceMs < PROVIDER_BALANCE_MIN_INTERVAL_MS) {
+      const mins = Math.max(1, Math.ceil((PROVIDER_BALANCE_MIN_INTERVAL_MS - sinceMs) / 60_000));
+      return ok(
+        { balance: row.balance, currency: row.balance_currency, refreshed: false, lastBalanceAt: row.last_balance_at },
+        `Bakiye ${mins} dakika önce sorgulandı; sağlayıcı sınırı (15 dk'da 1 istek) nedeniyle tekrar sorgulanmadı.`
+      );
+    }
+
+    const instance = await getProviderByName(provider);
+    if (!instance) return badRequest("Sağlayıcı yapılandırması bulunamadı.");
+    try {
+      const b = await instance.getBalance();
+      const at = new Date().toISOString();
+      await admin
+        .from("provider_settings")
+        .update({ balance: String(b.balance), balance_currency: b.currency, last_balance_at: at, last_error: null })
+        .eq("provider", provider);
+      await admin
+        .from("audit_logs")
+        .insert({ actor_id: s.id, action: "provider.balance_refresh", payload: { provider, balance: b.balance, currency: b.currency } as never });
+      return ok(
+        { balance: b.balance, currency: b.currency, refreshed: true, lastBalanceAt: at },
+        `Bakiye güncellendi: ${b.balance} ${b.currency}`
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Bakiye sorgulanamadı.";
+      const limited = msg.includes("BALANCE_RATE_LIMITED");
+      if (!limited) {
+        await admin.from("provider_settings").update({ last_error: msg.slice(0, 500) }).eq("provider", provider);
+      }
+      return badRequest(
+        limited
+          ? "Sağlayıcı istek limiti doldu (15 dakikada 1 istek); lütfen birkaç dakika sonra tekrar deneyin."
+          : `Bakiye sorgulanamadı: ${msg}`
+      );
+    }
   }
 
   if (action === "set-active-provider") {

@@ -7,19 +7,23 @@ import { timingSafeEqualStr } from "@/lib/security";
 export const runtime = "nodejs";
 export const maxDuration = 15;
 
-// Gatum DLR: GET /api/v1/webhooks/dlr/{provider}?id_state=&state=&time=&error=
-// (+ API_KEY header; onay modunda yanıt gövdesi id_state olmalı)
+// Gatum REST API DLR: POST /api/v1/webhooks/dlr/{provider}
+//   JSON dizisi: [{id_state, phone, state, time, error, ...}, ...]
+//   (+ API_KEY header; hesapta onay modu açıksa yanıt gövdesi
+//    onaylanan id_state'lerden oluşan JSON dizisi olmalı)
+// Eski tekil nesne / query-string varyantları da desteklenir.
 async function handle(req: Request, ctx: { params: Promise<{ provider: string }> }) {
   const { provider: providerName } = await ctx.params;
   const url = new URL(req.url);
   const raw = Object.fromEntries(url.searchParams.entries());
 
-  // POST varyantı da desteklenir
-  let body: Record<string, unknown> = raw;
+  // POST gövdesi: dizi (REST API) veya nesne (eski varyant)
+  let payload: unknown = raw;
   if (req.method === "POST") {
     const text = await req.text();
     try {
-      body = { ...raw, ...(JSON.parse(text) as Record<string, unknown>) };
+      const parsed: unknown = JSON.parse(text);
+      payload = Array.isArray(parsed) ? parsed : { ...raw, ...(parsed as Record<string, unknown>) };
     } catch {
       // query parametreleri yeterli
     }
@@ -33,7 +37,7 @@ async function handle(req: Request, ctx: { params: Promise<{ provider: string }>
     await admin.from("webhook_logs").insert({
       direction: "inbound",
       url: `/api/v1/webhooks/dlr/${providerName}`,
-      payload: body as never,
+      payload: (payload ?? raw) as never,
       response_code: 404,
     });
     return Response.json({ error: "unknown provider" }, { status: 404 });
@@ -53,7 +57,7 @@ async function handle(req: Request, ctx: { params: Promise<{ provider: string }>
     headers[k.toLowerCase()] = v;
   });
 
-  const items = provider.parseDlrWebhook(body, headers);
+  const items = provider.parseDlrWebhook(payload, headers);
 
   // idempotent uygulama
   const results: unknown[] = [];
@@ -65,14 +69,13 @@ async function handle(req: Request, ctx: { params: Promise<{ provider: string }>
   await admin.from("webhook_logs").insert({
     direction: "inbound",
     url: `/api/v1/webhooks/dlr/${providerName}`,
-    payload: body as never,
+    payload: (payload ?? raw) as never,
     response_code: 200,
   });
 
-  // Gatum onay modu: 200 + gövde = id_state
-  const idState = String(body["id_state"] ?? body["idState"] ?? "");
-  if (idState && providerName === "gatum") {
-    return new Response(idState, { status: 200, headers: { "Content-Type": "text/plain" } });
+  // Gatum onay modu: 200 + gövde = onaylanan id_state'lerin JSON dizisi
+  if (providerName === "gatum") {
+    return Response.json(items.map((i) => i.providerMessageId), { status: 200 });
   }
   return applyCorsHeaders(
     Response.json({ success: true, code: 200, message: "OK", data: { processed: results.length } }),
