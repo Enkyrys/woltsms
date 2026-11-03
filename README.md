@@ -83,7 +83,7 @@ anahtar Postgres'te saklanır. SQL Editor'de:
 
 ```sql
 alter database postgres set app.cron_secret = '<CRON_SECRET>';   -- .env'deki değerle aynısı
-alter database postgres set app.internal_worker_url = '<APP_URL>'; -- örn https://woltsms.com
+alter database postgres set app.internal_worker_url = '<APP_URL>'; -- örn https://woltsms.vercel.app
 
 notify pgrst, 'reload config';
 ```
@@ -129,7 +129,7 @@ Sağlayıcı kimlik bilgileri (Gatum token vs.) **ENV'de değil**, admin panelin
 ### İlk admin'i oluşturmak (seed kullanmadıysanız)
 
 ```bash
-curl -X POST https://<ALAN_ADINIZ>/api/seed/first-admin \
+curl -X POST https://woltsms.vercel.app/api/seed/first-admin \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <BOOTSTRAP_TOKEN>" \
   -d '{"username":"admin","password":"<GÜÇLÜ-ŞİFRE>","email":"admin@woltsms.com","name":"Yönetici"}'
@@ -151,7 +151,7 @@ Panel → **Yönetici → Sistem & Sağlayıcı → Entegrasyonlar**:
 - **Gönderen:** API'nizin onaylı senderID'si (ör. `WOLTSMS`)
 
 DLR callback adresi otomatik olarak
-`https://<ALAN_ADINIZ>/api/v1/webhooks/dlr/gatum` olarak gönderilir.
+`https://woltsms.vercel.app/api/v1/webhooks/dlr/gatum` olarak gönderilir.
 
 Test için panelde **MockProvider** seçip "Bakiye Sorgulama & Test" düğmesini
 kullanabilirsiniz (dışarıya istek atmaz).
@@ -164,7 +164,7 @@ kullanabilirsiniz (dışarıya istek atmaz).
 - Örnekler: `docs/examples/php.php`, `docs/examples/javascript.js`, `docs/examples/python.py`
 
 ```bash
-curl -X POST https://<ALAN_ADINIZ>/api/v1/sms/send \
+curl -X POST https://woltsms.vercel.app/api/v1/sms/send \
   -H "Authorization: Bearer wsk_live_..." \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: 9f2c...-0001" \

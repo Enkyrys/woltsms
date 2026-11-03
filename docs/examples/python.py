@@ -6,7 +6,7 @@ import uuid
 import requests
 
 API_KEY = "wsk_live_..."  # panelde ürettiğiniz anahtar
-BASE_URL = "https://woltsms.com"
+BASE_URL = "https://woltsms.vercel.app"
 
 
 class WoltsmsError(Exception):

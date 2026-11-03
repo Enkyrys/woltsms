@@ -2,7 +2,7 @@
 // Gerekli: fetch (Node 18+ yerleşik).
 
 const API_KEY = "wsk_live_..."; // panelde ürettiğiniz anahtar
-const BASE_URL = "https://woltsms.com";
+const BASE_URL = "https://woltsms.vercel.app";
 
 /**
  * SMS gönder

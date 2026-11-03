@@ -5,7 +5,7 @@
  */
 
 $apiKey   = 'wsk_live_...';            // panelde ürettiğiniz anahtar (bir kez gösterilir)
-$baseUrl  = 'https://woltsms.com';
+$baseUrl  = 'https://woltsms.vercel.app';
 
 /**
  * SMS gönder

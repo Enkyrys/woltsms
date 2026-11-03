@@ -4,9 +4,9 @@
     "title": "WOLTSMS API",
     "version": "1.0.0",
     "description": "WOLTSMS bayi SMS paneli public API'si. Kimlik doğrulama `Authorization: Bearer <api_key>` ile yapılır. Yanıt zarfı her zaman `{ success, code, message, data }` şeklindedir.",
-    "contact": { "name": "WOLTSMS Destek", "url": "https://woltsms.com/panel/destek" }
+    "contact": { "name": "WOLTSMS Destek", "url": "https://woltsms.vercel.app/panel/destek" }
   },
-  "servers": [{ "url": "https://woltsms.com", "description": "Üretim" }],
+  "servers": [{ "url": "https://woltsms.vercel.app", "description": "Üretim" }],
   "components": {
     "securitySchemes": {
       "apiKeyAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "wsk_live_..." }
