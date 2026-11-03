@@ -2,36 +2,307 @@
   "openapi": "3.1.0",
   "info": {
     "title": "WOLTSMS API",
-    "version": "1.0.0",
-    "description": "WOLTSMS bayi SMS paneli public API'si. Kimlik doğrulama `Authorization: Bearer <api_key>` ile yapılır. Yanıt zarfı her zaman `{ success, code, message, data }` şeklindedir.",
-    "contact": { "name": "WOLTSMS Destek", "url": "https://woltsms.vercel.app/panel/destek" }
+    "version": "1.1.0",
+    "description": "WOLTSMS bayi SMS paneli public API'si.\n\n**Kimlik doğrulama:** her istekte `Authorization: Bearer wsk_live_...`. Tam anahtar panelde yalnızca bir kez gösterilir; veritabanında yalnızca SHA-256 özeti tutulur.\n\n**Yanıt zarfı:** `{ success, code, message, data, meta? }`.\n\n**Gönderim penceresi:** Europe/Istanbul 10:00–22:00. `schedule_at` yoksa ve pencere dışındaysa 422; `schedule_at` varsa bir sonraki pencere başlangıcına kaydırılır.\n\n**İstek limiti:** anahtar başına dakikada 120 istek (429).",
+    "contact": {
+      "name": "WOLTSMS Destek",
+      "url": "https://woltsms.vercel.app/panel/destek"
+    }
   },
-  "servers": [{ "url": "https://woltsms.vercel.app", "description": "Üretim" }],
+  "servers": [
+    {
+      "url": "https://woltsms.vercel.app",
+      "description": "Üretim"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
   "components": {
     "securitySchemes": {
-      "apiKeyAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "wsk_live_..." }
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "wsk_live_<48 hex>"
+      }
     },
     "schemas": {
       "Envelope": {
         "type": "object",
+        "required": [
+          "success",
+          "code",
+          "message"
+        ],
         "properties": {
-          "success": { "type": "boolean" },
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
-          "data": {}
-        },
-        "required": ["success", "code", "message"]
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {},
+          "meta": {
+            "type": "object"
+          }
+        }
+      },
+      "SendResult": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "examples": [
+              "ok"
+            ]
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Kara listedekiler ve geçersiz numaralar düşüldükten sonraki alıcı sayısı"
+          },
+          "segments": {
+            "type": "integer"
+          },
+          "encoding": {
+            "type": "string",
+            "enum": [
+              "GSM",
+              "UCS2"
+            ]
+          },
+          "total_cost": {
+            "type": "string",
+            "examples": [
+              "1.0000"
+            ]
+          },
+          "balance_after": {
+            "type": "string"
+          },
+          "scheduled_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "blacklisted_count": {
+            "type": "integer"
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "order_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recipient": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "sending",
+              "sent",
+              "delivered",
+              "failed",
+              "refunded"
+            ]
+          },
+          "segments": {
+            "type": "integer"
+          },
+          "encoding": {
+            "type": "string"
+          },
+          "cost": {
+            "type": "string"
+          },
+          "provider_message_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sent_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "delivered_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "scheduled",
+              "processing",
+              "completed",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "total_count": {
+            "type": "integer"
+          },
+          "processed_count": {
+            "type": "integer"
+          },
+          "failed_count": {
+            "type": "integer"
+          },
+          "total_cost": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "scheduled_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Balance": {
+        "type": "object",
+        "properties": {
+          "balance": {
+            "type": "string"
+          },
+          "reserved": {
+            "type": "string"
+          },
+          "available": {
+            "type": "string"
+          },
+          "unit_price": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "examples": [
+              "TRY"
+            ]
+          }
+        }
+      },
+      "CallbackEvent": {
+        "type": "object",
+        "required": [
+          "event",
+          "message_id",
+          "recipient",
+          "status"
+        ],
+        "properties": {
+          "event": {
+            "type": "string",
+            "enum": [
+              "message.sent",
+              "message.delivered",
+              "message.failed"
+            ]
+          },
+          "message_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "order_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "delivered/failed (DLR) olaylarında bulunur"
+          },
+          "provider_message_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recipient": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "sent",
+              "delivered",
+              "failed"
+            ]
+          },
+          "error": {
+            "type": "string",
+            "description": "yalnızca gönderim hatasında (message.failed)"
+          }
+        }
       }
     }
   },
-  "security": [{ "apiKeyAuth": [] }],
   "paths": {
     "/api/v1/sms/send": {
       "post": {
-        "summary": "SMS gönder",
-        "description": "Alıcı listesine mesaj gönderir. Bakiye atomik rezerve edilir; yetersizse 402. `Idempotency-Key` header'ı ile çift gönderim engellenir.",
+        "summary": "SMS gönder (aynı metin, çok alıcı)",
+        "description": "Bakiye atomik rezerve edilir; yetersizse 402. Alıcılar 905XXXXXXXXX biçimine normalize edilir (05XX…, +90…, 0090… kabul). `Idempotency-Key` (veya `X-Idempotency-Key`) ile çift gönderim engellenir. `callback_url` verilirse API anahtarına kaydedilir ve sonraki tüm olaylar için kullanılır.",
         "parameters": [
-          { "name": "Idempotency-Key", "in": "header", "required": false, "schema": { "type": "string" } }
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
@@ -39,47 +310,164 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["recipients", "message"],
+                "required": [
+                  "recipients",
+                  "message"
+                ],
                 "properties": {
-                  "recipients": { "type": "array", "items": { "type": "string" }, "maxItems": 5000, "examples": [["905XXXXXXXXX"]] },
-                  "message": { "type": "string", "maxLength": 918, "examples": ["Merhaba, kampanyamız başladı!"] },
-                  "schedule_at": { "type": "string", "format": "date-time", "description": "ISO 8601; 10:00–22:00 (Europe/Istanbul) dışına kaydırılır." },
-                  "callback_url": { "type": "string", "format": "uri" }
+                  "recipients": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "maxItems": 5000,
+                    "examples": [
+                      [
+                        "905300000000"
+                      ]
+                    ]
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 918,
+                    "examples": [
+                      "Merhaba WOLTSMS!"
+                    ]
+                  },
+                  "schedule_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601. 10:00–22:00 (Europe/Istanbul) dışındaysa bir sonraki 10:00'a kaydırılır."
+                  },
+                  "callback_url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "202": { "description": "Kuyruğa alındı" },
-          "400": { "description": "Geçersiz istek" },
-          "401": { "description": "Geçersiz API anahtarı" },
-          "402": { "description": "Yetersiz bakiye" },
-          "403": { "description": "Yetkisiz / IP değil" },
-          "422": { "description": "Doğrulama hatası" },
-          "429": { "description": "Rate limit" }
+          "202": {
+            "description": "Kuyruğa alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Envelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/SendResult"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Anahtar yok / hatalı / pasif",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Yetersiz bakiye",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "IP beyaz listede değil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Doğrulama hatası veya gönderim penceresi dışı (schedule_at yok)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "İstek limiti aşıldı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/sms/bulk": {
       "post": {
-        "summary": "Toplu gönderim (farklı metinler)",
-        "description": "Her alıcıya farklı metin gönderir. Metinlere göre gruplanır.",
+        "summary": "Toplu gönderim (alıcıya özel metin)",
+        "description": "Aynı metne sahip alıcılar gruplanır; her benzersiz metin için ayrı sipariş oluşur. Bu uç `schedule_at`/`Idempotency-Key` desteklemez.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["messages"],
+                "required": [
+                  "messages"
+                ],
                 "properties": {
                   "messages": {
                     "type": "array",
+                    "minItems": 1,
                     "maxItems": 5000,
                     "items": {
                       "type": "object",
-                      "required": ["to", "text"],
-                      "properties": { "to": { "type": "string" }, "text": { "type": "string" } }
+                      "required": [
+                        "to",
+                        "text"
+                      ],
+                      "properties": {
+                        "to": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      }
                     }
                   }
                 }
@@ -87,39 +475,328 @@
             }
           }
         },
-        "responses": { "202": { "description": "Kuyruğa alındı" } }
+        "responses": {
+          "202": {
+            "description": "Kuyruğa alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Envelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "orders": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "order_id": {
+                                    "type": "string"
+                                  },
+                                  "total_count": {
+                                    "type": "integer"
+                                  },
+                                  "total_cost": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "order_count": {
+                              "type": "integer"
+                            },
+                            "total_cost": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama hatası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Yetersiz bakiye",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Doğrulama hatası / pencere dışı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "İstek limiti",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/sms/{id}": {
       "get": {
         "summary": "Mesaj durumu",
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
-        "responses": { "200": { "description": "OK" }, "404": { "description": "Bulunamadı" } }
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Envelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/Message"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama hatası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Mesaj bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/orders": {
       "get": {
         "summary": "Sipariş listesi (sayfalı)",
         "parameters": [
-          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
-          { "name": "per_page", "in": "query", "schema": { "type": "integer", "default": 10, "maximum": 100 } }
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
         ],
-        "responses": { "200": { "description": "OK" } }
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Envelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Order"
+                          }
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "integer"
+                            },
+                            "page": {
+                              "type": "integer"
+                            },
+                            "per_page": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama hatası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/balance": {
       "get": {
-        "summary": "Kalan kredi",
-        "responses": { "200": { "description": "OK" } }
+        "summary": "Bakiye ve birim fiyat",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Envelope"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/Balance"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama hatası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/webhooks/dlr/{provider}": {
       "get": {
-        "summary": "Teslim raporu (DLR) webhook'u",
-        "description": "Sağlayıcıdan GET ile çağrılır. `id_state`, `state` (DELIVRD|UNDELIV|EXPIRED|ENROUTE), `time`, `error`. Güvenlik anahtarı varsa `API_KEY` header'ı ile doğrulanır. Onay modunda yanıt gövdesi `id_state` olmalıdır.",
-        "parameters": [{ "name": "provider", "in": "path", "required": true, "schema": { "type": "string", "examples": ["gatum"] } }],
+        "summary": "Sağlayıcı teslim raporu (DLR) — yalnızca sağlayıcı çağırır",
+        "description": "Gatum gibi SMS sağlayıcıları tarafından çağrılır (GET veya POST). Müşteri entegrasyonu için değildir; müşteriler `callback_url` üzerinden `callbacks` bölümündeki olayları alır. Güvenlik anahtarı `API_KEY` başlığı ile doğrulanır; onay modunda yanıt gövdesi onaylanan `id_state` dizisidir.",
         "security": [],
-        "responses": { "200": { "description": "Alındı (onay modunda gövde id_state)" } }
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "gatum"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Alındı"
+          },
+          "401": {
+            "description": "WEBHOOK_SECRET uyuşmuyor"
+          },
+          "404": {
+            "description": "Bilinmeyen sağlayıcı"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {
+    "smsEvent": {
+      "post": {
+        "summary": "Müşteri callback bildirimi (callback_url'e POST edilir)",
+        "description": "message.sent, message.delivered, message.failed. 2xx yanıt zorunlu (10 sn zaman aşımı); aksi halde 5 denemeye kadar üstel bekleme ile tekrarlanır (at-least-once; message_id+event ile tekilleştirin). İmza başlığı yoktur.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallbackEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Alındı"
+          }
+        }
       }
     }
   }
