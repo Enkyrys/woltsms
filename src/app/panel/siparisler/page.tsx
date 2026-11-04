@@ -2,8 +2,17 @@
 import { useEffect, useState } from "react";
 import { PageTitle, Pagination, StatusBadge, Empty, Modal } from "@/components/ui";
 
+// Sağlayıcı saati veritabanında saat dilimsiz duvar saati olarak tutulur ("2026-11-05T06:02:00").
+// new Date() ile çevrilmez (tarayıcı kendi saatine kaydırırdı); olduğu gibi biçimlendirilir.
+function fmtProviderTime(v: unknown, tz: unknown): string {
+  const m = String(v ?? "").match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  if (!m) return "-";
+  return `${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]} ${String(tz || "UTC")}`;
+}
+const fmtLocal = (v: unknown) => (v ? new Date(String(v)).toLocaleString("tr-TR") : "-");
+
 export default function SiparislerPage() {
-  const [rows, setRows] = useState<{ id: string; status: string; totalCount: number; processedCount: number; username: string; scheduledAt: string; createdAt: string; message: string; note: string }[]>([]);
+  const [rows, setRows] = useState<{ id: string; status: string; totalCount: number; processedCount: number; username: string; scheduledAt: string; providerScheduledAt: string | null; providerTimezone: string; providerTriggeredAt: string | null; createdAt: string; message: string; note: string }[]>([]);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [total, setTotal] = useState(0);
@@ -67,7 +76,7 @@ export default function SiparislerPage() {
       <div className="card !p-0 overflow-hidden">
         <table className="w-full table-head">
           <thead><tr className="text-left border-b">
-            <th>ID</th><th>Durum ↕ ⧩</th><th>İşlenen ↕ ⧩</th><th>Oluşturan</th><th>Gönderileceği Tarihi</th><th className="sorted-col">Oluşturulma Tarihi ⤓ ⧩</th>{isAdmin && <th>İşlem</th>}
+            <th>ID</th><th>Durum ↕ ⧩</th><th>İşlenen ↕ ⧩</th><th>Oluşturan</th><th title="Siparişin Sempico'ya iletilen oluşturma saati (UTC)">Sağlayıcı Saati (Sempico UTC)</th><th className="sorted-col">Oluşturulma Tarihi ⤓ ⧩</th>{isAdmin && <th>İşlem</th>}
           </tr></thead>
           <tbody>
             {rows.length === 0 && <tr><td colSpan={isAdmin ? 7 : 6}><Empty text="Sipariş bulunamadı." /></td></tr>}
@@ -77,7 +86,10 @@ export default function SiparislerPage() {
                 <td><StatusBadge status={r.status} /></td>
                 <td>{r.processedCount}/{r.totalCount}</td>
                 <td>{r.username}</td>
-                <td>{r.scheduledAt ? new Date(r.scheduledAt).toLocaleString("tr-TR") : "-"}</td>
+                <td>
+                  <span className="font-mono text-[12px]">{fmtProviderTime(r.providerScheduledAt, r.providerTimezone)}</span>
+                  {r.providerTriggeredAt && <div className="text-[11px] text-[#0A8F7E]">✓ Sempico'ya gönderildi</div>}
+                </td>
                 <td>{new Date(r.createdAt).toLocaleString("tr-TR")}</td>
                 {isAdmin && (
                   <td onClick={(e) => e.stopPropagation()}>
@@ -95,6 +107,9 @@ export default function SiparislerPage() {
         <Modal title={`Sipariş #${detail.order.id}`} wide onClose={() => setDetail(null)}>
           <div className="text-sm space-y-1 mb-3">
             <div><b>Durum:</b> <StatusBadge status={String(detail.order.status)} /> · {String(detail.order.processedCount)}/{String(detail.order.totalCount)}</div>
+            <div><b>Oluşturma (gönderici) saati:</b> {fmtLocal(detail.order.createdAt)} <span className="text-slate-400">(sizin saatiniz)</span></div>
+            <div><b>Sağlayıcı saati (Sempico):</b> <span className="font-mono">{fmtProviderTime(detail.order.providerScheduledAt, detail.order.providerTimezone)}</span></div>
+            <div><b>Sempico'ya gönderim:</b> {detail.order.providerTriggeredAt ? fmtLocal(detail.order.providerTriggeredAt) : "Gönderiliyor…"}</div>
             <div><b>Mesaj:</b> {String(detail.order.message)}</div>
             {detail.order.note ? <div><b>Not:</b> {String(detail.order.note)}</div> : null}
           </div>

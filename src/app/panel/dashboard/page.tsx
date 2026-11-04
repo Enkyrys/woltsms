@@ -9,7 +9,6 @@ export default function DashboardPage() {
   const [lists, setLists] = useState<{ id: string; title: string; count: number }[]>([]);
   const [listId, setListId] = useState("");
   const [numbers, setNumbers] = useState("");
-  const [scheduledAt, setScheduledAt] = useState("");
   const [history, setHistory] = useState<{ id: string; body: string }[]>([]);
   const [message, setMessage] = useState("");
   const [balance, setBalance] = useState("0");
@@ -62,35 +61,19 @@ export default function DashboardPage() {
     }
   };
 
-  // datetime-local değeri ("2026-11-05T10:02") kullanıcının KENDİ saatidir.
-  // Tarayıcı bunu kendi saat dilimine göre yorumlar; sunucuya saat dilimli (UTC ISO) gönderilir.
-  // Böylece sunucu/sağlayıcı saati farklı olsa da SMS kullanıcının seçtiği anda gider.
-  const scheduleIso = (() => {
-    if (!scheduledAt) return undefined;
-    const d = new Date(scheduledAt);
-    return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
-  })();
-  const providerTimeHint = (() => {
-    if (!scheduleIso) return "";
-    const d = new Date(scheduleIso);
-    const f = (tz: string) => d.toLocaleString("tr-TR", { timeZone: tz, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-    return `Seçilen: ${f(Intl.DateTimeFormat().resolvedOptions().timeZone)} (sizin saatiniz) → sağlayıcıya iletilecek: ${f("UTC")} (UTC)`;
-  })();
-
   const submit = async () => {
     if (!message.trim()) { alert("Mesaj yazın."); return; }
-    if (scheduledAt && !scheduleIso) { alert("Geçersiz gönderim tarihi."); return; }
     setSending(true); setResult("");
     const r = await fetch("/api/panel/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Idempotency-Key": "order-" + Date.now() },
-      body: JSON.stringify({ message, numbers, contactListId: listId || undefined, scheduleAt: scheduleIso }),
+      body: JSON.stringify({ message, numbers, contactListId: listId || undefined, }),
     });
     const j = await r.json();
     setSending(false);
     setResult(j.success ? `✓ ${j.message} (Sipariş #${j.data.orderId}, ${j.data.totalCount} numara, ${j.data.segments} segment, ₺${j.data.totalCost})` : `✗ ${j.message}`);
     if (j.success) {
-      setMessage(""); setNumbers(""); setListId(""); setScheduledAt("");
+      setMessage(""); setNumbers(""); setListId("");
       fetch("/api/panel/balance").then(async (r2) => { if (r2.ok) { const jj = await r2.json(); setBalance(jj.data.balance); } });
       fetch("/api/panel/orders?perPage=5").then(async (r2) => { if (r2.ok) { const jj = await r2.json(); setRecent(jj.data); } });
     }
@@ -149,9 +132,9 @@ export default function DashboardPage() {
         </div>
 
         <div>
-          <label className="label">Gönderileceği tarihi (ileri tarihli sipariş · kendi saatiniz)</label>
-          <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className={`input ${providerTimeHint ? "mb-1" : "mb-5"}`} placeholder="Gönderileceği Tarihi" />
-          {providerTimeHint && <p className="text-[11px] text-slate-500 mb-5">{providerTimeHint}</p>}
+          <p className="text-[12px] text-slate-500 mb-5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
+            Sipariş kaydedildiği anda gönderilir. Oluşturma saati Sempico'ya UTC olarak iletilir.
+          </p>
 
           <label className="label">Geçmiş mesajlar</label>
           <select onChange={(e) => { if (e.target.value) setMessage(history.find((h) => String(h.id) === e.target.value)?.body || ""); }} className="input mb-5" defaultValue="">

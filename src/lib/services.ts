@@ -2,7 +2,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveProvider, hasActiveProvider } from "@/lib/providers";
 import type { Json } from "@/db/types";
-import { parseTurkeyDateTime } from "@/lib/timezone";
 
 // WOLTSMS - servis katmanı: tüm bakiye işlemleri SQL RPC'lerinde.
 // Bu dosyalık yalnızca çağırıcı + worker orkestrasyonu.
@@ -81,18 +80,16 @@ export async function createOrder(opts: {
     }
   | { ok: false; error: string; code: number }
 > {
-  const scheduleAtUtc = opts.scheduleAt ? parseTurkeyDateTime(opts.scheduleAt) : null;
-  if (opts.scheduleAt && !scheduleAtUtc) {
-    return { ok: false, error: "Geçersiz gönderim tarihi. Örnek: 2026-11-05T14:30 (Türkiye saati).", code: 400 };
-  }
+  // İleri tarihli sipariş YOK: gönderilecek tarih (scheduleAt) dikkate alınmaz.
+  // Sipariş veritabanına kaydedildiği an (created_at) gönderim anıdır; sağlayıcıya
+  // bu an UTC'ye çevrilerek API ile hemen iletilir (bkz. sendOrderNow).
   try {
     // panel: oturum JWT'siyle (auth.uid() için); public API: service_role + p_user_id
     const supabase = opts.viaServiceRole ? createAdminClient() : await createClient();
     const { data, error } = await supabase.rpc("rpc_create_order", {
       p_recipients: opts.recipients as unknown as Json,
       p_message: opts.message,
-      // Türkiye saatiyle girilen (saat dilimsiz) tarih → UTC; aksi halde Postgres UTC sanar
-      p_schedule_at: scheduleAtUtc,
+      p_schedule_at: null,
       p_source: opts.source,
       p_idempotency_key: opts.idempotencyKey ?? null,
       p_contact_list_id: opts.contactListId ?? null,
@@ -193,6 +190,17 @@ export async function adminAdjust(userId: string, amount: number, description?: 
   }
 }
 
+// ===================== sipariş kaydedilince hemen gönder =====================
+// Route Handler'larda next/server `after()` ile çağrılır: yanıt döndükten hemen sonra
+// aynı istek içinde çalışır (Vercel fonksiyonu kapanmadan). Worker cron'u yedek olarak kalır.
+export async function sendOrderNow(limit = 250): Promise<void> {
+  try {
+    await processSendBatch(limit);
+  } catch {
+    // kuyrukta kalan mesajları dakikalık worker gönderir
+  }
+}
+
 // ===================== worker: gönderim partisi =====================
 
 export async function processSendBatch(limit = 250): Promise<{ claimed: number; sent: number; failed: number; retried: number }> {
@@ -211,7 +219,8 @@ export async function processSendBatch(limit = 250): Promise<{ claimed: number; 
     recipient: string;
     body: string;
     user_id: string;
-    next_attempt_at: string | null; // planlanan gönderim anı (UTC)
+    next_attempt_at: string | null;
+    created_at: string; // sipariş/mesajın veritabanına kaydedildiği an (UTC)
   }[];
   if (messages.length === 0) return { claimed: 0, sent: 0, failed: 0, retried: 0 };
 
@@ -242,9 +251,10 @@ export async function processSendBatch(limit = 250): Promise<{ claimed: number; 
     const cbFull = callbackUrl
       ? `${process.env.APP_URL || ""}/api/v1/webhooks/dlr/${provider.name}?u=${m.user_id}`
       : undefined;
-    // Planlanan gönderim anı sağlayıcıya iletilir; adapter bunu sağlayıcının saat
-    // dilimine (Gatum: UTC) çevirir. Geçmiş bir an ise "şimdi" kullanılır.
-    const res = await provider.sendSms(m.recipient, m.body, { callbackUrl: cbFull, sendAt: m.next_attempt_at });
+    // Gönderim anı = siparişin veritabanına kaydedildiği an (created_at). Adapter bunu
+    // sağlayıcının saatine (Sempico: UTC) çevirip beginDate/beginTime olarak iletir;
+    // an geçmişte kaldıysa (yeniden deneme) "şimdi" kullanılır.
+    const res = await provider.sendSms(m.recipient, m.body, { callbackUrl: cbFull, sendAt: m.created_at });
 
     const { data: completed, error: completeErr } = await admin.rpc("rpc_complete_send", {
       p_message_id: m.id,

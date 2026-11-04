@@ -22,7 +22,7 @@ export async function sendSms(recipients, message, opts = {}) {
     body: JSON.stringify({
       recipients,
       message,
-      schedule_at: opts.scheduleAt, // ISO 8601; saat dilimsiz değer Türkiye saati kabul edilir (24 saat açık)
+      schedule_at: opts.scheduleAt, // yok sayılır: sipariş kaydedildiği anda gönderilir
     }),
   });
 

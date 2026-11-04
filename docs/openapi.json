@@ -99,7 +99,7 @@
                   "schedule_at": {
                     "type": "string",
                     "format": "date-time",
-                    "description": "ISO 8601. Saat dilimi verilmezse Türkiye saati (Europe/Istanbul) kabul edilir. Gönderim 24 saat açıktır (00:00–23:59)."
+                    "description": "Kullanılmıyor (yok sayılır). Sipariş kaydedildiği anda gönderilir; oluşturma saati sağlayıcıya UTC olarak iletilir."
                   },
                   "callback_url": {
                     "type": "string",

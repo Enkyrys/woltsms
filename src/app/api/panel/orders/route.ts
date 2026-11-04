@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { after } from "next/server";
 import { getSession, hasPermissionSync } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createUserClient } from "@/lib/supabase/server";
-import { createOrder } from "@/lib/services";
+import { createOrder, sendOrderNow } from "@/lib/services";
 import { parseRecipients } from "@/lib/sms-segments";
 import { ok, accepted, unauthorized, forbidden, badRequest } from "@/lib/api-response";
 
@@ -62,6 +63,9 @@ export async function GET(req: Request) {
           message: order.message,
           note: order.note,
           scheduledAt: order.scheduled_at,
+          providerScheduledAt: order.provider_scheduled_at ?? null,
+          providerTimezone: order.provider_timezone ?? "UTC",
+          providerTriggeredAt: order.provider_triggered_at ?? null,
           source: order.source,
           createdAt: order.created_at,
         },
@@ -100,6 +104,9 @@ export async function GET(req: Request) {
     message: o.message,
     note: o.note,
     scheduledAt: o.scheduled_at,
+    providerScheduledAt: o.provider_scheduled_at ?? null,
+    providerTimezone: o.provider_timezone ?? "UTC",
+    providerTriggeredAt: o.provider_triggered_at ?? null,
     source: o.source,
     username: "",
     createdAt: o.created_at,
@@ -183,12 +190,9 @@ export async function POST(req: Request) {
     return Response.json({ success: false, code: result.code, message: result.error }, { status: result.code });
   }
 
-  // panel siparişi için worker hemen çağrılır (async kalır)
-  if (result.status === "pending") {
-    import("@/lib/services")
-      .then((m) => m.processSendBatch(200))
-      .catch(() => undefined);
-  }
+  // sipariş veritabanına kaydedildi → hemen Sempico API ile gönder
+  // (RPC durum olarak "ok" döndürür; önceki "pending" kontrolü hiç tutmuyordu)
+  after(() => sendOrderNow(250));
 
   return accepted({
     orderId: result.orderId,

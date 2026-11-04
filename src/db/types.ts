@@ -86,6 +86,11 @@ export interface Order {
   message: string | null;
   note: string | null;
   scheduled_at: string | null;
+  /** Sağlayıcı (Sempico) saatiyle gönderim zamanı — provider_timezone duvar saati, ör. "2026-11-05T06:02:00" */
+  provider_scheduled_at: string | null;
+  provider_timezone: string;
+  /** Sağlayıcı API'sine gönderimin tetiklendiği an */
+  provider_triggered_at: string | null;
   source: "panel" | "api";
   created_by: string | null;
   idempotency_key: string | null;

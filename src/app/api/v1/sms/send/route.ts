@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { authenticateApiRequest } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { applyCorsHeaders } from "@/lib/cors";
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
       req
     );
   }
-  const { recipients, message, schedule_at, callback_url } = parsed.data;
+  const { recipients, message, callback_url } = parsed.data; // schedule_at yok sayılır
 
   const { createOrder } = await import("@/lib/services");
   const idemKey = req.headers.get("idempotency-key") || req.headers.get("x-idempotency-key");
@@ -75,7 +76,7 @@ export async function POST(req: Request) {
     userId: auth.userId,
     recipients,
     message,
-    scheduleAt: schedule_at ?? null,
+    scheduleAt: null, // ileri tarih dikkate alınmaz; kayıt anında gönderilir
     source: "api",
     idempotencyKey: idemKey,
     viaServiceRole: true, // çerez yok; RPC service_role + p_user_id ile çağrılır
@@ -88,10 +89,11 @@ export async function POST(req: Request) {
     );
   }
 
-  // worker hemen tetiklenir (kısa partide)
-  import("@/lib/services")
-    .then((m) => m.processSendBatch(200))
-    .catch(() => undefined);
+  // sipariş veritabanına kaydedildi → hemen Sempico API ile gönder
+  after(async () => {
+    const { sendOrderNow } = await import("@/lib/services");
+    await sendOrderNow(250);
+  });
 
   return applyCorsHeaders(
     Response.json(

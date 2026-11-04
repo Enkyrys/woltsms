@@ -1,7 +1,8 @@
+import { after } from "next/server";
 import { authenticateApiRequest } from "@/lib/auth";
 import { applyCorsHeaders } from "@/lib/cors";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createOrder } from "@/lib/services";
+import { createOrder, sendOrderNow } from "@/lib/services";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -69,9 +70,8 @@ export async function POST(req: Request) {
     results.push({ order_id: r.orderId, total_count: r.totalCount, total_cost: r.totalCost, status: r.status });
   }
 
-  import("@/lib/services")
-    .then((m) => m.processSendBatch(300))
-    .catch(() => undefined);
+  // siparişler veritabanına kaydedildi → hemen Sempico API ile gönder
+  after(() => sendOrderNow(300));
 
   return applyCorsHeaders(
     Response.json(

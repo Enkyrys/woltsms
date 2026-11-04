@@ -39,6 +39,9 @@ export async function GET(req: Request) {
         total_cost: o.total_cost,
         message: o.message,
         scheduled_at: o.scheduled_at,
+        provider_scheduled_at: o.provider_scheduled_at ?? null, // Sempico saati (UTC)
+        provider_timezone: o.provider_timezone ?? "UTC",
+        provider_triggered_at: o.provider_triggered_at ?? null,
         source: o.source,
         created_at: o.created_at,
       })),
