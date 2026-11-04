@@ -18,7 +18,15 @@ describe("Türkiye saati girişi → UTC", () => {
   });
 });
 
-describe("sağlayıcıya İngiltere saati (Europe/London)", () => {
+describe("sağlayıcı saati", () => {
+  it("varsayılan UTC: UTC+4 kullanıcının 10:02'si → 06:02 (4 saat geri)", () => {
+    const n = new Date("2026-11-05T00:00:00Z");
+    expect(providerSchedule("2026-11-05T10:02:00+04:00", undefined, n)).toMatchObject({ beginDate: "2026-11-05", beginTime: "06:02" });
+  });
+  it("varsayılan UTC: Türkiye 10:02 → 07:02", () => {
+    const n = new Date("2026-11-05T00:00:00Z");
+    expect(providerSchedule(parseTurkeyDateTime("2026-11-05T10:02"), undefined, n)).toMatchObject({ beginTime: "07:02" });
+  });
   const now = new Date("2026-01-01T00:00:00Z");
   it("kış (GMT): TR 14:30 → UK 11:30", () => {
     const utc = parseTurkeyDateTime("2026-11-05T14:30")!;

@@ -203,9 +203,10 @@ uygulanmış olması gerekir.
   siparişler pencereye kaydırılır; pencere dışında kalanlar `rpc_cancel_out_of_window`
   ile iptal + rezerv iadesi yapılır.
 - **Saat dilimi / sağlayıcı:** Panelde ve API'de saat dilimsiz girilen tarih/saat
-  Türkiye saatidir. Sağlayıcı (Gatum/Sempico) İngiltere'de olduğundan gönderim
-  tarihi/saati `beginDate` / `beginTime` alanlarında **İngiltere saatine
-  (Europe/London, GMT/BST)** çevrilerek iletilir (`src/lib/timezone.ts`).
+  Türkiye saatidir; panelde kullanıcı kendi saatini seçer, tarayıcı saat dilimli
+  gönderir. Sağlayıcı (Gatum/Sempico) saati UTC olduğundan gönderim tarihi/saati
+  `beginDate` / `beginTime` alanlarında **UTC'ye** çevrilerek iletilir
+  (UTC+4'te 10:02 → 06:02; `src/lib/timezone.ts`).
   Farklı bir saat dilimi gerekirse sağlayıcı `config.timezone` ile değiştirilebilir.
 - **Admin sipariş bildirimi:** Bayilerden yeni sipariş geldiğinde admin panelinde
   5 saniyelik güçlü sesli uyarı çalar (üst bardaki 🔊 düğmesiyle aç/kapat).
