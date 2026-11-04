@@ -198,9 +198,17 @@ uygulanmış olması gerekir.
 
 ## İşleyiş notları
 
-- **Gönderim penceresi:** 10:00–22:00 Europe/Istanbul. Dışına atanan siparişler
-  çalışan pencereye kaydırılır; 22:00'de kalanlar `rpc_cancel_out_of_window`
+- **Gönderim penceresi:** 24 saat — başlangıç 24:00, bitiş 23:59 (Europe/Istanbul,
+  `0012_24h_sending_window.sql`). Admin farklı bir pencere tanımlarsa dışına atanan
+  siparişler pencereye kaydırılır; pencere dışında kalanlar `rpc_cancel_out_of_window`
   ile iptal + rezerv iadesi yapılır.
+- **Saat dilimi / sağlayıcı:** Panelde ve API'de saat dilimsiz girilen tarih/saat
+  Türkiye saatidir. Sağlayıcı (Gatum/Sempico) İngiltere'de olduğundan gönderim
+  tarihi/saati `beginDate` / `beginTime` alanlarında **İngiltere saatine
+  (Europe/London, GMT/BST)** çevrilerek iletilir (`src/lib/timezone.ts`).
+  Farklı bir saat dilimi gerekirse sağlayıcı `config.timezone` ile değiştirilebilir.
+- **Admin sipariş bildirimi:** Bayilerden yeni sipariş geldiğinde admin panelinde
+  5 saniyelik güçlü sesli uyarı çalar (üst bardaki 🔊 düğmesiyle aç/kapat).
 - **Segment:** GSM 160/153, UCS-2 70/67. Kodlama GSM 03.38 tablosuna göre belirlenir:
   ş, Ş, ğ, Ğ, ı, İ ve küçük **ç** tabloda olmadığı için UCS-2'ye zorlar; Ç, ö, ü, Ö, Ü GSM'dir.
   UCS-2 uzunluğu UTF-16 kod birimidir (emoji = 2). TS (`lib/sms-segments.ts`) ve SQL
