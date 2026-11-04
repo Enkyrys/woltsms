@@ -90,6 +90,21 @@ describe("GatumProvider.sendSms (REST API v1)", () => {
     expect(pkg.callback_url).toBe("https://wolt.app/api/v1/webhooks/dlr/gatum");
   });
 
+  it("planlı gönderim: Türkiye saati İngiltere saatine çevrilip beginDate/beginTime olarak iletilir", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-01T00:00:00Z"));
+    try {
+      const calls = stubFetch(() => json(200, { status: true, data: { "905321234567": [{ id_state: 1 }] } }));
+      // TR 05.11.2026 14:30 (UTC+3) = 11:30 UTC = UK 11:30 (GMT)
+      await makeGatum().sendSms("905321234567", "x", { sendAt: "2026-11-05T11:30:00.000Z" });
+      const pkg = sentBody(calls[0].init)[0] as Record<string, unknown>;
+      expect(pkg.beginDate).toBe("2026-11-05");
+      expect(pkg.beginTime).toBe("11:30");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("200 + numara bazlı hata → ilgili kod, retryable değil", async () => {
     stubFetch(() => json(200, { status: true, data: { "905321234567": [{ error: "no_active_aggregator" }] } }));
     const r = await makeGatum().sendSms("905321234567", "x");

@@ -164,25 +164,49 @@ describe("parseRecipients", () => {
   });
 });
 
-describe("gönderim penceresi (10:00–22:00 Europe/Istanbul)", () => {
+describe("özel gönderim penceresi (10:00–22:00 Europe/Istanbul)", () => {
   // Europe/Istanbul = UTC+3 (yaz saati farkı yok)
   it("11:00 UTC = 14:00 IST → içinde", () => {
-    expect(isWithinSendingWindow(new Date("2026-01-01T11:00:00Z"))).toBe(true);
+    expect(isWithinSendingWindow(new Date("2026-01-01T11:00:00Z"), 10, 22)).toBe(true);
   });
   it("07:00 UTC = 10:00 IST → sınır (içinde)", () => {
-    expect(isWithinSendingWindow(new Date("2026-01-01T07:00:00Z"))).toBe(true);
+    expect(isWithinSendingWindow(new Date("2026-01-01T07:00:00Z"), 10, 22)).toBe(true);
   });
   it("06:59 UTC = 09:59 IST → dışında", () => {
-    expect(isWithinSendingWindow(new Date("2026-01-01T06:59:00Z"))).toBe(false);
+    expect(isWithinSendingWindow(new Date("2026-01-01T06:59:00Z"), 10, 22)).toBe(false);
   });
   it("19:00 UTC = 22:00 IST → dışında (bitiş exclusive)", () => {
-    expect(isWithinSendingWindow(new Date("2026-01-01T19:00:00Z"))).toBe(false);
+    expect(isWithinSendingWindow(new Date("2026-01-01T19:00:00Z"), 10, 22)).toBe(false);
   });
   it("18:59 UTC = 21:59 IST → içinde", () => {
-    expect(isWithinSendingWindow(new Date("2026-01-01T18:59:00Z"))).toBe(true);
+    expect(isWithinSendingWindow(new Date("2026-01-01T18:59:00Z"), 10, 22)).toBe(true);
   });
   it("özel saat aralığı", () => {
     expect(isWithinSendingWindow(new Date("2026-01-01T12:00:00Z"), 0, 24)).toBe(true);
+  });
+});
+
+describe("varsayılan 24 saat gönderim penceresi (00:00–23:59)", () => {
+  it("varsayılan: gece yarısı (00:00 IST) içinde", () => {
+    expect(isWithinSendingWindow(new Date("2026-01-01T21:00:00Z"))).toBe(true);
+  });
+  it("varsayılan: 23:59 IST içinde", () => {
+    expect(isWithinSendingWindow(new Date("2026-01-01T20:59:00Z"))).toBe(true);
+  });
+  it("varsayılan: 03:00 IST içinde", () => {
+    expect(isWithinSendingWindow(new Date("2026-01-01T00:00:00Z"))).toBe(true);
+  });
+  it("başlangıç 24 (=24:00) bitiş 24 → 24 saat", () => {
+    expect(isWithinSendingWindow(new Date("2026-01-01T21:30:00Z"), 24, 24)).toBe(true);
+    expect(isWithinSendingWindow(new Date("2026-01-01T10:00:00Z"), 24, 24)).toBe(true);
+  });
+  it("gece yarısını aşan pencere (20 → 02)", () => {
+    expect(isWithinSendingWindow(new Date("2026-01-01T21:30:00Z"), 20, 2)).toBe(true); // 00:30 IST
+    expect(isWithinSendingWindow(new Date("2026-01-01T09:00:00Z"), 20, 2)).toBe(false); // 12:00 IST
+  });
+  it("varsayılan nextWindowStart her zaman aynı anı döner", () => {
+    const at = new Date("2026-01-01T19:30:00Z"); // 22:30 IST
+    expect(nextWindowStart(at).toISOString()).toBe(at.toISOString());
   });
 });
 
@@ -204,14 +228,14 @@ describe("maskeleme (loglar için KVKK)", () => {
 describe("nextWindowStart (sunucu saat diliminden bağımsız)", () => {
   it("pencere içindeyse aynı anı döner", () => {
     const at = new Date("2026-01-01T11:00:00Z"); // 14:00 IST
-    expect(nextWindowStart(at).toISOString()).toBe(at.toISOString());
+    expect(nextWindowStart(at, 10, 22).toISOString()).toBe(at.toISOString());
   });
   it("22:00 sonrası ertesi gün 10:00 IST", () => {
     const at = new Date("2026-01-01T19:30:00Z"); // 22:30 IST
-    expect(nextWindowStart(at).toISOString()).toBe("2026-01-02T07:00:00.000Z");
+    expect(nextWindowStart(at, 10, 22).toISOString()).toBe("2026-01-02T07:00:00.000Z");
   });
   it("10:00 öncesi aynı gün 10:00 IST", () => {
     const at = new Date("2026-01-01T02:00:00Z"); // 05:00 IST
-    expect(nextWindowStart(at).toISOString()).toBe("2026-01-01T07:00:00.000Z");
+    expect(nextWindowStart(at, 10, 22).toISOString()).toBe("2026-01-01T07:00:00.000Z");
   });
 });
