@@ -1,5 +1,5 @@
 // WOLTSMS - Provider Adapter deseni (lib/providers/)
-// İlk adapter: Gatum SMS (sempico.solutions). Ek olarak MockProvider (test)
+// İlk adapter: ENKYRYS SMS (Gatum REST API). Ek olarak MockProvider (test)
 // ve Generic HTTP (herhangi bir JSON API). Yeni sağlayıcı = yeni adapter +
 // provider_settings tablosuna kayıt; paneldeki "Entegrasyonlar" sekmesinden
 // kimlik bilgileri girilir (AES-256-GCM ile şifreli saklanır).
