@@ -4,34 +4,67 @@
     "title": "WOLTSMS API",
     "version": "1.0.0",
     "description": "WOLTSMS bayi SMS paneli public API'si. Kimlik doğrulama `Authorization: Bearer <api_key>` ile yapılır. Yanıt zarfı her zaman `{ success, code, message, data }` şeklindedir.",
-    "contact": { "name": "WOLTSMS Destek", "url": "https://woltsms.vercel.app/panel/destek" }
+    "contact": {
+      "name": "WOLTSMS Destek",
+      "url": "https://woltsms.vercel.app/panel/destek"
+    }
   },
-  "servers": [{ "url": "https://woltsms.vercel.app", "description": "Üretim" }],
+  "servers": [
+    {
+      "url": "https://woltsms.vercel.app",
+      "description": "Üretim"
+    }
+  ],
   "components": {
     "securitySchemes": {
-      "apiKeyAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "wsk_live_..." }
+      "apiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "wsk_live_..."
+      }
     },
     "schemas": {
       "Envelope": {
         "type": "object",
         "properties": {
-          "success": { "type": "boolean" },
-          "code": { "type": "integer" },
-          "message": { "type": "string" },
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
           "data": {}
         },
-        "required": ["success", "code", "message"]
+        "required": [
+          "success",
+          "code",
+          "message"
+        ]
       }
     }
   },
-  "security": [{ "apiKeyAuth": [] }],
+  "security": [
+    {
+      "apiKeyAuth": []
+    }
+  ],
   "paths": {
     "/api/v1/sms/send": {
       "post": {
         "summary": "SMS gönder",
         "description": "Alıcı listesine mesaj gönderir. Bakiye atomik rezerve edilir; yetersizse 402. `Idempotency-Key` header'ı ile çift gönderim engellenir.",
         "parameters": [
-          { "name": "Idempotency-Key", "in": "header", "required": false, "schema": { "type": "string" } }
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
@@ -39,25 +72,66 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["recipients", "message"],
+                "required": [
+                  "recipients",
+                  "message"
+                ],
                 "properties": {
-                  "recipients": { "type": "array", "items": { "type": "string" }, "maxItems": 5000, "examples": [["905XXXXXXXXX"]] },
-                  "message": { "type": "string", "maxLength": 918, "examples": ["Merhaba, kampanyamız başladı!"] },
-                  "schedule_at": { "type": "string", "format": "date-time", "description": "ISO 8601; 10:00–22:00 (Europe/Istanbul) dışına kaydırılır." },
-                  "callback_url": { "type": "string", "format": "uri" }
+                  "recipients": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 5000,
+                    "examples": [
+                      [
+                        "905XXXXXXXXX"
+                      ]
+                    ]
+                  },
+                  "message": {
+                    "type": "string",
+                    "maxLength": 918,
+                    "examples": [
+                      "Merhaba, kampanyamız başladı!"
+                    ]
+                  },
+                  "schedule_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601; 10:00–22:00 (Europe/Istanbul) dışına kaydırılır."
+                  },
+                  "callback_url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "202": { "description": "Kuyruğa alındı" },
-          "400": { "description": "Geçersiz istek" },
-          "401": { "description": "Geçersiz API anahtarı" },
-          "402": { "description": "Yetersiz bakiye" },
-          "403": { "description": "Yetkisiz / IP değil" },
-          "422": { "description": "Doğrulama hatası" },
-          "429": { "description": "Rate limit" }
+          "202": {
+            "description": "Kuyruğa alındı"
+          },
+          "400": {
+            "description": "Geçersiz istek"
+          },
+          "401": {
+            "description": "Geçersiz API anahtarı"
+          },
+          "402": {
+            "description": "Yetersiz bakiye"
+          },
+          "403": {
+            "description": "Yetkisiz / IP değil"
+          },
+          "422": {
+            "description": "Doğrulama hatası"
+          },
+          "429": {
+            "description": "Rate limit"
+          }
         }
       }
     },
@@ -71,15 +145,27 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["messages"],
+                "required": [
+                  "messages"
+                ],
                 "properties": {
                   "messages": {
                     "type": "array",
                     "maxItems": 5000,
                     "items": {
                       "type": "object",
-                      "required": ["to", "text"],
-                      "properties": { "to": { "type": "string" }, "text": { "type": "string" } }
+                      "required": [
+                        "to",
+                        "text"
+                      ],
+                      "properties": {
+                        "to": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      }
                     }
                   }
                 }
@@ -87,39 +173,116 @@
             }
           }
         },
-        "responses": { "202": { "description": "Kuyruğa alındı" } }
+        "responses": {
+          "202": {
+            "description": "Kuyruğa alındı"
+          }
+        }
       }
     },
     "/api/v1/sms/{id}": {
       "get": {
         "summary": "Mesaj durumu",
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
-        "responses": { "200": { "description": "OK" }, "404": { "description": "Bulunamadı" } }
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Bulunamadı"
+          }
+        }
       }
     },
     "/api/v1/orders": {
       "get": {
         "summary": "Sipariş listesi (sayfalı)",
         "parameters": [
-          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
-          { "name": "per_page", "in": "query", "schema": { "type": "integer", "default": 10, "maximum": 100 } }
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "maximum": 100
+            }
+          }
         ],
-        "responses": { "200": { "description": "OK" } }
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
       }
     },
     "/api/v1/balance": {
       "get": {
         "summary": "Kalan kredi",
-        "responses": { "200": { "description": "OK" } }
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
       }
     },
     "/api/v1/webhooks/dlr/{provider}": {
       "get": {
         "summary": "Teslim raporu (DLR) webhook'u",
         "description": "Sağlayıcıdan GET ile çağrılır. `id_state`, `state` (DELIVRD|UNDELIV|EXPIRED|ENROUTE), `time`, `error`. Güvenlik anahtarı varsa `API_KEY` header'ı ile doğrulanır. Onay modunda yanıt gövdesi `id_state` olmalıdır.",
-        "parameters": [{ "name": "provider", "in": "path", "required": true, "schema": { "type": "string", "examples": ["gatum"] } }],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "gatum"
+              ]
+            }
+          }
+        ],
         "security": [],
-        "responses": { "200": { "description": "Alındı (onay modunda gövde id_state)" } }
+        "responses": {
+          "200": {
+            "description": "Alındı (onay modunda gövde id_state)"
+          }
+        }
+      }
+    },
+    "/api/v1/connection": {
+      "get": {
+        "summary": "Bağlantı kontrolü",
+        "description": "Authorization: Bearer ile gelen anahtarı api_keys tablosundan doğrular. Kayıt varsa `connected:true, message:\"Bağlandı\"`; yoksa `connected:false, message:\"Bağlantı yok: ...\"`. `data.checks`: user_id, key_encrypted, hmac_secret_encrypted.",
+        "responses": {
+          "200": {
+            "description": "Bağlandı"
+          },
+          "401": {
+            "description": "Bağlantı yok (anahtar geçersiz/pasif)"
+          },
+          "403": {
+            "description": "Bağlantı yok (IP yetkisiz)"
+          }
+        }
       }
     }
   }

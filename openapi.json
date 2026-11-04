@@ -775,6 +775,23 @@
           }
         }
       }
+    },
+    "/api/v1/connection": {
+      "get": {
+        "summary": "Bağlantı kontrolü",
+        "description": "Authorization: Bearer ile gelen anahtarı api_keys tablosundan doğrular. Kayıt varsa `connected:true, message:\"Bağlandı\"`; yoksa `connected:false, message:\"Bağlantı yok: ...\"`. `data.checks`: user_id, key_encrypted, hmac_secret_encrypted.",
+        "responses": {
+          "200": {
+            "description": "Bağlandı"
+          },
+          "401": {
+            "description": "Bağlantı yok (anahtar geçersiz/pasif)"
+          },
+          "403": {
+            "description": "Bağlantı yok (IP yetkisiz)"
+          }
+        }
+      }
     }
   },
   "webhooks": {

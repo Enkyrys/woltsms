@@ -109,6 +109,9 @@ export default function ApiDocsPage() {
             veya mobil uygulamaya koymayın. İsterseniz anahtara IP beyaz listesi tanımlayabilirsiniz.
           </div>
           <div>
+            <b>İsteğe bağlı imza:</b> API Secret ile <span className="font-mono">X-Signature: hex(HMAC-SHA256(secret, ham_body))</span> header&apos;ı ekleyebilirsiniz. Zorunlu değildir.
+          </div>
+          <div>
             <b>Çift gönderim koruması:</b> <span className="font-mono">Idempotency-Key</span> header&apos;ı gönderin;
             aynı anahtarla tekrar edilen istek yeniden gönderim yapmaz.
           </div>
@@ -127,6 +130,7 @@ export default function ApiDocsPage() {
           <div><span className="font-mono bg-blue-100 px-1 rounded">GET</span> <span className="font-mono">/api/v1/sms/{"{id}"}</span> — mesaj durumu</div>
           <div><span className="font-mono bg-blue-100 px-1 rounded">GET</span> <span className="font-mono">/api/v1/orders</span> — sipariş listesi</div>
           <div><span className="font-mono bg-blue-100 px-1 rounded">GET</span> <span className="font-mono">/api/v1/balance</span> — kalan kredi</div>
+          <div><span className="font-mono bg-blue-100 px-1 rounded">GET</span> <span className="font-mono">/api/v1/connection</span> — bağlantı kontrolü (&quot;Bağlandı&quot; / &quot;Bağlantı yok&quot;)</div>
         </div>
         <div className="text-[13px] mt-3">
           Yanıt: <span className="font-mono">{"{success, code, message, data}"}</span> · Kodlar: 202 (kuyruğa alındı), 400, 401 (hatalı anahtar), 402 (yetersiz bakiye), 403 (IP yetkisiz), 422 (doğrulama), 429 (istek limiti), 500
