@@ -23,7 +23,7 @@ const PROVIDER_META: Record<string, { label: string; hint: string; fields: { key
     fields: [],
   },
   gatum: {
-    label: "Gatum SMS (sempico.solutions)",
+    label: "ENKYRYS SMS",
     hint: "GET /send API'si. DLR callback_url ile gelir; güvenlik anahtarı API_KEY header'ı ile doğrulanır.",
     fields: [
       { key: "token", label: "Token (Dashboard'da oluşturulan)", placeholder: "gbBX8dB7kDvBeo0H-..." },

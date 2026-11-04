@@ -3,7 +3,9 @@ import { GatumProvider, clearGatumTokenCache } from "@/lib/providers/gatum";
 import { MockProvider } from "@/lib/providers/mock";
 import { mapProviderError } from "@/lib/providers/types";
 
-const BASE = "https://restapi.sempico.solutions/v1";
+import { PROVIDER_DEFAULT_BASE_URL } from "@/config/provider";
+
+const BASE = PROVIDER_DEFAULT_BASE_URL;
 
 type Call = { url: string; init?: RequestInit };
 
@@ -428,5 +430,39 @@ describe("MockProvider", () => {
   it("getReports delivered döner", async () => {
     const reports = await new MockProvider().getReports(["abc"]);
     expect(reports[0].status).toBe("delivered");
+  });
+});
+
+describe("ENKYRYS gönderim güvenliği (tekrar koruması, API yanıtı, yeniden deneme sınıfı)", () => {
+  it("HTTP 500'de SMS POST'u o anda TEKRARLANMAZ (çift gönderim yok); geçici hata olarak işaretlenir", async () => {
+    const calls = stubFetch(() => json(500, { status: false, error_code: 500, errors: "internal error" }));
+    const r = await makeGatum().sendSms("905321234567", "x");
+    expect(calls.filter((c) => c.url.endsWith("/send"))).toHaveLength(1);
+    expect(r.ok).toBe(false);
+    expect(r.retryable).toBe(true);
+    expect(r.httpStatus).toBe(500);
+  });
+
+  it("kalıcı hata (incorrect_phone) yeniden denenmez", async () => {
+    stubFetch(() => json(200, { status: true, data: { "905321234567": [{ error: "incorrect_phone" }] } }));
+    const r = await makeGatum().sendSms("905321234567", "x");
+    expect(r.ok).toBe(false);
+    expect(r.retryable).toBe(false);
+  });
+
+  it("API yanıtı kaydedilir; toplu yanıtta yalnız ilgili numara tutulur", async () => {
+    stubFetch(() => json(200, { status: true, data: { "905321234567": [{ id_state: 77 }], "905329999999": [{ id_state: 78 }] } }));
+    const r = await makeGatum().sendSms("905321234567", "x");
+    expect(r.ok).toBe(true);
+    expect(r.httpStatus).toBe(200);
+    expect(r.raw).toEqual({ status: true, data: { "905321234567": [{ id_state: 77 }] } });
+  });
+
+  it("ağ hatası geçici sayılır ve yanıt olarak hata metni kaydedilir", async () => {
+    stubFetch(() => { throw new Error("ECONNRESET"); });
+    const r = await makeGatum().sendSms("905321234567", "x");
+    expect(r.ok).toBe(false);
+    expect(r.errorCode).toBe("PROVIDER_NETWORK");
+    expect(r.retryable).toBe(true);
   });
 });

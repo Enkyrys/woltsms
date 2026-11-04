@@ -3,12 +3,12 @@
 -- 0015 SONRASINDA çalıştırılır (idempotent). 0014'teki "her zaman hemen gönder"
 -- kuralının yerini alır.
 --
---  * Gönderim tarihi seçilmezse  → sipariş kaydedildiği anda Sempico'ya gönderilir.
+--  * Gönderim tarihi seçilmezse  → sipariş kaydedildiği anda ENKYRYS'e gönderilir.
 --  * Oluşturma saatinden SONRAKİ bir tarih/saat seçilirse → sipariş 'scheduled'
---    (Zamanlı) bekler; worker (her dakika) Sempico saati (UTC) bu zamana
---    geldiğinde siparişi alır ve Sempico API ile gönderir.
+--    (Zamanlı) bekler; worker (her dakika) ENKYRYS saati (UTC) bu zamana
+--    geldiğinde siparişi alır ve ENKYRYS API ile gönderir.
 --  * Oluşturma saatinden önceki (geçmiş) bir zaman → hemen gönderim.
---  * orders.provider_scheduled_at = gönderim zamanının Sempico saati (UTC) karşılığı.
+--  * orders.provider_scheduled_at = gönderim zamanının ENKYRYS saati (UTC) karşılığı.
 -- =====================================================================
 
 -- 0014'ün mesajları zorla "şimdi"ye çeken tetikleyicisi kaldırılır
@@ -33,7 +33,7 @@ begin
     end if;
   end if;
 
-  -- Sempico saati (UTC duvar saati, saniye hassasiyeti)
+  -- ENKYRYS saati (UTC duvar saati, saniye hassasiyeti)
   new.provider_scheduled_at := date_trunc(
     'second',
     coalesce(new.scheduled_at, new.created_at, now()) at time zone new.provider_timezone

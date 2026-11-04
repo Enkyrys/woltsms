@@ -3,7 +3,7 @@ import type { DlrItem, ProviderInterface, SendResult, BalanceResult } from "./ty
 import { fetchWithRetry, mapProviderError } from "./types";
 
 // ============================================================
-// Gatum SMS (api.sempico.solutions) adapter
+// ENKYRYS SMS (Gatum GET API) adapter — eski sürüm
 // API: GET /send?token=&phone=&senderID=&text=&type=SMS&lifetime=86400
 //        &beginDate=YYYY-MM-DD&beginTime=HH:MM:SS&callback_url=&delivery=TRUE
 // 200 → {"<phone>": <id_state>} | {"<phone>": [id_state, ...]} (multipart)

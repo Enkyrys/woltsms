@@ -143,8 +143,8 @@ Token'ı **tek kullanımdan sonra değiştirin veya iptal edin**.
 
 Panel → **Yönetici → Sistem & Sağlayıcı → Entegrasyonlar**:
 
-- **Sağlayıcı:** `Gatum SMS (sempico.solutions)`
-- **Base URL:** `https://api.sempico.solutions`
+- **Sağlayıcı:** `ENKYRYS SMS`
+- **Base URL:** sağlayıcının teknik API adresi (`src/config/provider.ts`, `ENKYRYS_API_BASE_URL` ile değiştirilebilir)
 - **Gönderim Ucu:** `/send`
 - **Token:** Gatum dashboard'dan oluşturulan anahtar
 - **Güvenlik Anahtarı:** (opsiyonel) DLR isteklerinde `API_KEY` header'ı olarak gelir
@@ -204,16 +204,26 @@ uygulanmış olması gerekir.
   ile iptal + rezerv iadesi yapılır.
 - **Saat dilimi / sağlayıcı:** Panelde ve API'de saat dilimsiz girilen tarih/saat
   Türkiye saatidir; panelde kullanıcı kendi saatini seçer, tarayıcı saat dilimli
-  gönderir. Sağlayıcı (Gatum/Sempico) saati UTC olduğundan gönderim tarihi/saati
+  gönderir. Sağlayıcı (Gatum/ENKYRYS) saati UTC olduğundan gönderim tarihi/saati
   `beginDate` / `beginTime` alanlarında **UTC'ye** çevrilerek iletilir
   (UTC+4'te 10:02 → 06:02; `src/lib/timezone.ts`).
   Farklı bir saat dilimi gerekirse sağlayıcı `config.timezone` ile değiştirilebilir.
-- **Gönderim anı:** Tarih seçilmezse sipariş kaydedildiği anda Sempico API'ye gönderilir.
+- **Kampanyalar:** Yeni Kampanya ekranında "Hemen Gönder" ya da "İleri Tarihte Gönder" seçilir;
+  taslak olarak da kaydedilebilir. Zamanlanmış kampanyalar `/panel/zamanlanmis` sayfasında
+  gönderim başlamadan düzenlenir veya iptal edilir. Durumlar: Taslak, Zamanlandı, Gönderim
+  Bekliyor, Gönderiliyor, Gönderildi, Kısmen Gönderildi, Başarısız, İptal Edildi.
+- **7/24 zamanlayıcı:** pg_cron her dakika `/api/internal/worker`'ı çağırır (0003). Panelin açık
+  olması gerekmez. Sistem > Sağlık'ta "schedulerStatus" zamanlayıcının çalıştığını gösterir.
+- **Tekrar koruması:** form başına Idempotency-Key, mesaj bazında atomik `queued → sending`
+  geçişi (SKIP LOCKED), sonuçlandırılmış mesaja ikinci sonuç `ignored`, SMS POST'unun HTTP
+  katmanında tekrarlanmaması. Her API denemesi `sms_send_attempts` tablosunda.
+- **Yerel uçtan uca test:** `bash tests/e2e-local/run.sh` (PostgreSQL + Node gerekir).
+- **Gönderim anı:** Tarih seçilmezse sipariş kaydedildiği anda ENKYRYS API'ye gönderilir.
   Oluşturma saatinden sonraki bir tarih/saat seçilirse sipariş "Zamanlı" bekler; dakikalık
-  worker (pg_cron) Sempico saati (UTC) o zamana geldiğinde gönderir (`0016_optional_future_schedule.sql`).
-- **Sağlayıcı saati:** `orders.provider_scheduled_at` Sempico'nun saatiyle (UTC) gönderim
+  worker (pg_cron) ENKYRYS saati (UTC) o zamana geldiğinde gönderir (`0016_optional_future_schedule.sql`).
+- **Sağlayıcı saati:** `orders.provider_scheduled_at` ENKYRYS'in saatiyle (UTC) gönderim
   zamanını tutar ve Siparişler sayfasında gösterilir. Worker (her dakika) siparişi
-  ancak Sempico saati bu zamana geldiğinde alır ve Sempico API'ye gönderir;
+  ancak ENKYRYS saati bu zamana geldiğinde alır ve ENKYRYS API'ye gönderir;
   gönderim başladığında `provider_triggered_at` yazılır.
 - **Admin sipariş bildirimi:** Bayilerden yeni sipariş geldiğinde admin panelinde
   5 saniyelik güçlü sesli uyarı çalar (üst bardaki 🔊 düğmesiyle aç/kapat).

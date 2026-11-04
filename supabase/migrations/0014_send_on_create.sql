@@ -4,8 +4,8 @@
 --
 --  * "Gönderileceği tarih" artık dikkate alınmaz. Sipariş veritabanına
 --    kaydedildiği an (created_at) gönderim anıdır ve uygulama siparişi o anda
---    Sempico API'ye iletir.
---  * orders.provider_scheduled_at = created_at'in Sempico saatiyle (UTC) karşılığı.
+--    ENKYRYS API'ye iletir.
+--  * orders.provider_scheduled_at = created_at'in ENKYRYS saatiyle (UTC) karşılığı.
 --    Örn. bayi UTC+4'te 10:02'de oluşturdu → 06:02:xx UTC.
 --  * rpc_create_order p_schedule_at verilse bile yok sayılır (eski istemciler için güvence).
 -- =====================================================================

@@ -1,26 +1,26 @@
 -- =====================================================================
--- WOLTSMS - 0013 : Sağlayıcı (Sempico) gönderim saati
+-- WOLTSMS - 0013 : Sağlayıcı (ENKYRYS) gönderim saati
 -- 0001-0012 SONRASINDA çalıştırılır (idempotent).
 --
 --  * orders tablosuna sağlayıcı saati sütunları eklendi:
---      provider_scheduled_at  timestamp (saat dilimsiz) — Sempico'nun kendi
+--      provider_scheduled_at  timestamp (saat dilimsiz) — ENKYRYS'in kendi
 --                             saatiyle (UTC) gönderim tarihi/saati, dakika hassasiyeti.
 --                             Örn. kullanıcı UTC+4'te 10:02 seçti → 06:02.
 --      provider_timezone      text  — sağlayıcı saat dilimi (varsayılan 'UTC')
---      provider_triggered_at  timestamptz — siparişin Sempico API'ye gönderilmeye
+--      provider_triggered_at  timestamptz — siparişin ENKYRYS API'ye gönderilmeye
 --                             başlandığı an (worker tetiklediğinde yazılır).
 --  * provider_scheduled_at, scheduled_at her yazıldığında tetikleyiciyle hesaplanır.
 --  * Worker (rpc_claim_send_batch) bir siparişi yalnızca gönderici saati (scheduled_at)
 --    ile sağlayıcı saati (provider_scheduled_at) eşleştiğinde, yani sağlayıcının
---    şu anki saati gönderim saatine geldiğinde alır ve Sempico API ile gönderir.
+--    şu anki saati gönderim saatine geldiğinde alır ve ENKYRYS API ile gönderir.
 -- =====================================================================
 
 alter table public.orders add column if not exists provider_scheduled_at timestamp;
 alter table public.orders add column if not exists provider_timezone text not null default 'UTC';
 alter table public.orders add column if not exists provider_triggered_at timestamptz;
 
-comment on column public.orders.provider_scheduled_at is 'Sağlayıcı (Sempico) saatiyle gönderim tarihi/saati — provider_timezone (UTC) duvar saati';
-comment on column public.orders.provider_timezone is 'Sağlayıcı saat dilimi (Sempico: UTC)';
+comment on column public.orders.provider_scheduled_at is 'Sağlayıcı (ENKYRYS) saatiyle gönderim tarihi/saati — provider_timezone (UTC) duvar saati';
+comment on column public.orders.provider_timezone is 'Sağlayıcı saat dilimi (ENKYRYS: UTC)';
 comment on column public.orders.provider_triggered_at is 'Siparişin sağlayıcı API''sine gönderilmeye başlandığı an';
 
 create index if not exists orders_provider_scheduled_idx
