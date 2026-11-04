@@ -4,6 +4,9 @@
 |---|---|
 | `supabase/migrations/0012_24h_sending_window.sql` | YENİ — çalışma saati 24 saat (başlangıç 24:00 = 00:00, bitiş 23:59). `sending_start_hour=0`, `sending_end_hour=24`; 24/0 normalizasyonu, başlangıç=bitiş → 24 saat, gece yarısını aşan pencere desteği; duyuru metni güncellendi |
 | `supabase/migrations/0013_provider_schedule.sql` | YENİ — `orders.provider_scheduled_at` (Sempico saati, UTC), `provider_timezone`, `provider_triggered_at` sütunları; `scheduled_at` yazılınca tetikleyici sağlayıcı saatini hesaplar; worker siparişi yalnızca Sempico saati gönderim saatine geldiğinde alır ve Sempico API ile gönderir |
+| `supabase/migrations/0014_send_on_create.sql` | YENİ — ileri tarihli sipariş kaldırıldı: gönderim anı = kayıt anı (`created_at`); `provider_scheduled_at` = oluşturma saatinin UTC karşılığı |
+| `src/app/api/panel/orders`, `v1/sms/send`, `v1/sms/bulk` | Sipariş kaydedilince `after()` ile hemen Sempico API'ye gönderilir (önceki tetikleme panelde hiç çalışmıyordu, Vercel'de de yarıda kesilebiliyordu); `schedule_at` yok sayılır |
+| `src/app/panel/dashboard/page.tsx` | "Gönderileceği tarih" alanı kaldırıldı |
 | `src/app/panel/siparisler/page.tsx` | "Sağlayıcı Saati (Sempico)" sütunu + detayda gönderici/sağlayıcı saati ve gönderim durumu |
 | `src/lib/timezone.ts` | YENİ — kullanıcı saati ↔ UTC ↔ sağlayıcı saati çevirileri |
 | `src/app/panel/dashboard/page.tsx` | Seçilen tarih tarayıcının saat dilimine göre UTC ISO olarak gönderilir (önceden saat dilimsiz gidiyor, sunucu UTC sandığı için UTC+4'te SMS 4 saat geç çıkıyordu); altında "sağlayıcıya iletilecek (UTC)" saati gösterilir |
