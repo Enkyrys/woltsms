@@ -371,7 +371,7 @@ export default function SistemPage() {
       {tab === "announce" && (
         <Card>
           <Field label="Yeni Duyuru (üst bant)">
-            <textarea className="input" rows={2} value={annText} onChange={(e) => setAnnText(e.target.value)} placeholder="Gönderimler 10:00–22:00..." />
+            <textarea className="input" rows={2} value={annText} onChange={(e) => setAnnText(e.target.value)} placeholder="Gönderimler 24 saat aktiftir..." />
           </Field>
           <button onClick={saveAnn} className="btn-primary px-6 py-2.5 text-sm mb-4">Ekle</button>
           {anns.map((a) => (
@@ -399,8 +399,8 @@ export default function SistemPage() {
       {tab === "system" && (
         <Card>
           <div className="grid md:grid-cols-2 gap-3 max-w-2xl">
-            <Field label="Gönderim Başlangıç (saat)"><input className="input" value={sys.sending_start_hour || "10"} onChange={(e) => setSys({ ...sys, sending_start_hour: e.target.value })} /></Field>
-            <Field label="Gönderim Bitiş (saat)"><input className="input" value={sys.sending_end_hour || "22"} onChange={(e) => setSys({ ...sys, sending_end_hour: e.target.value })} /></Field>
+            <Field label="Gönderim Başlangıç (saat · 24 veya 0 = 24:00)"><input className="input" inputMode="numeric" value={sys.sending_start_hour ?? "0"} onChange={(e) => setSys({ ...sys, sending_start_hour: e.target.value })} /></Field>
+            <Field label="Gönderim Bitiş (saat · 24 = 23:59'a kadar)"><input className="input" inputMode="numeric" value={sys.sending_end_hour ?? "24"} onChange={(e) => setSys({ ...sys, sending_end_hour: e.target.value })} /></Field>
             <Field label="Varsayılan Birim Fiyat"><input className="input" value={sys.default_unit_price || "1"} onChange={(e) => setSys({ ...sys, default_unit_price: e.target.value })} /></Field>
             <Field label="Mesaj Saklama (gün, KVKK)"><input className="input" value={sys.message_retention_days || "180"} onChange={(e) => setSys({ ...sys, message_retention_days: e.target.value })} /></Field>
             <Field label="Sipariş başına azami alıcı"><input className="input" value={sys.max_recipients_per_order || "5000"} onChange={(e) => setSys({ ...sys, max_recipients_per_order: e.target.value })} /></Field>
@@ -409,7 +409,9 @@ export default function SistemPage() {
           </div>
           <button onClick={saveSys} disabled={sysSaving} className="btn-primary px-6 py-2.5 text-sm mt-2 disabled:opacity-50">{sysSaving ? "Kaydediliyor..." : "Kaydet"}</button>
           <p className="text-[12px] text-slate-500 mt-3">
-            22:00 sonrası gönderimler iptal edilir ve rezerv iade edilir. Worker pg_cron ile her dakika
+            Varsayılan çalışma saati 24 saattir: başlangıç 24:00, bitiş 23:59 (Türkiye saati). Başlangıç ve bitiş
+            aynı (ya da 0/24) ise gönderim gün boyu açıktır; pencere dışında kalan gönderimler iptal edilir ve rezerv iade edilir.
+            Sağlayıcıya iletilen gönderim tarihi/saati otomatik olarak İngiltere saatine (Europe/London) çevrilir. Worker pg_cron ile her dakika
             <span className="font-mono"> POST /api/internal/worker</span> ucunu CRON_SECRET ile çağırır.
           </p>
         </Card>

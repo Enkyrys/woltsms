@@ -20,12 +20,23 @@ export type DlrItem = {
   time?: string;
 };
 
+export type SendOptions = {
+  sender?: string;
+  callbackUrl?: string;
+  /** Planlanan gönderim anı (UTC ISO veya Date). Verilmezse "şimdi". */
+  sendAt?: Date | string | null;
+};
+
 export type BalanceResult = { balance: number; currency: string };
 
 export interface ProviderInterface {
   name: string;
-  sendSms(to: string, text: string, opts?: { sender?: string; callbackUrl?: string }): Promise<SendResult>;
-  sendBulk(messages: { to: string; text: string }[]): Promise<SendResult[]>;
+  /**
+   * opts.sendAt: siparişin planlanan gönderim anı (UTC). Sağlayıcı adapter'ı bunu
+   * kendi saat dilimine çevirerek iletir (Gatum: Europe/London → beginDate/beginTime).
+   */
+  sendSms(to: string, text: string, opts?: SendOptions): Promise<SendResult>;
+  sendBulk(messages: { to: string; text: string; sendAt?: Date | string | null }[]): Promise<SendResult[]>;
   getBalance(): Promise<BalanceResult>;
   getReports(ids: string[]): Promise<DlrItem[]>;
   parseDlrWebhook(payload: unknown, headers: Record<string, string>): DlrItem[];

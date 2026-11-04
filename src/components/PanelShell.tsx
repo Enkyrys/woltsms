@@ -2,6 +2,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Logo from "./Logo";
+import AdminOrderAlert from "./AdminOrderAlert";
 
 type Me = {
   id: string; username: string; name: string; email: string;
@@ -140,6 +141,7 @@ export default function PanelShell({ children }: { children: ReactNode }) {
                 </div>
               )}
             </div>
+            {me?.isAdmin && <AdminOrderAlert />}
             <button onClick={() => setDark(!dark)} className="w-9 h-9 grid place-items-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
               {dark ? "🌙" : "☀️"}
             </button>

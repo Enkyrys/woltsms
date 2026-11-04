@@ -29,7 +29,7 @@ def send_sms(recipients: list[str], message: str, schedule_at: str | None = None
         json={
             "recipients": recipients,
             "message": message,
-            "schedule_at": schedule_at,  # ISO 8601; 10:00–22:00 dışına kaydırılır
+            "schedule_at": schedule_at,  # ISO 8601; saat dilimsiz değer Türkiye saati kabul edilir (24 saat açık)
         },
         timeout=30,
     )

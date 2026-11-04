@@ -106,29 +106,54 @@ export function validateAndNormalizeList(list: string[]): {
   return { valid, invalidCount };
 }
 
-// Gönderim penceresi: Europe/Istanbul 10:00–22:00 (varsayılan)
+// Gönderim penceresi: Europe/Istanbul, varsayılan 24 saat (00:00–23:59).
+// Saat değerleri normalize edilir: başlangıç 24 → 0 (24:00 = gece yarısı),
+// bitiş 0 veya ≥ 24 → 24 (gün sonu 23:59 dahil), başlangıç = bitiş → 24 saat,
+// bitiş < başlangıç → gece yarısını aşan pencere. SQL in_sending_window ile aynı kural.
+export const DEFAULT_SENDING_START_HOUR = 0;
+export const DEFAULT_SENDING_END_HOUR = 24;
+
+export function normalizeSendingHours(startHour: number, endHour: number): { start: number; end: number; allDay: boolean } {
+  const s = Number.isFinite(startHour) ? Math.trunc(startHour) : DEFAULT_SENDING_START_HOUR;
+  let e = Number.isFinite(endHour) ? Math.trunc(endHour) : DEFAULT_SENDING_END_HOUR;
+  const start = ((s % 24) + 24) % 24;
+  if (e <= 0 || e >= 24) e = 24;
+  return { start, end: e, allDay: (start === 0 && e === 24) || start === e };
+}
+
+function istanbulHour(at: Date): number {
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Istanbul",
+    hour: "2-digit",
+    hourCycle: "h23",
+  });
+  return Number(fmt.format(at)) % 24;
+}
+
 export function isWithinSendingWindow(
   at: Date = new Date(),
-  startHour = 10,
-  endHour = 22
+  startHour = DEFAULT_SENDING_START_HOUR,
+  endHour = DEFAULT_SENDING_END_HOUR
 ): boolean {
-  const fmt = new Intl.DateTimeFormat("tr-TR", {
-    timeZone: "Europe/Istanbul",
-    hour: "numeric",
-    hour12: false,
-  });
-  const hour = Number(fmt.format(at));
-  return hour >= startHour && hour < endHour;
+  const w = normalizeSendingHours(startHour, endHour);
+  if (w.allDay) return true;
+  const hour = istanbulHour(at);
+  return w.start < w.end ? hour >= w.start && hour < w.end : hour >= w.start || hour < w.end;
 }
 
 // pencere dışındaysa pencerenin ilk uygun anına kaydır (içindeyse aynı anı döner).
 // Europe/Istanbul 2016'dan beri sabit UTC+3 olduğundan sunucu saat diliminden bağımsızdır.
 const IST_OFFSET_MS = 3 * 3600_000;
-export function nextWindowStart(at: Date, startHour = 10, endHour = 22): Date {
+export function nextWindowStart(
+  at: Date,
+  startHour = DEFAULT_SENDING_START_HOUR,
+  endHour = DEFAULT_SENDING_END_HOUR
+): Date {
+  if (isWithinSendingWindow(at, startHour, endHour)) return at;
+  const { start } = normalizeSendingHours(startHour, endHour);
   const local = new Date(at.getTime() + IST_OFFSET_MS); // UTC alanları = İstanbul duvar saati
   const hour = local.getUTCHours();
-  if (hour >= startHour && hour < endHour) return at;
   const dayStart = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
-  const dayOffset = hour < startHour ? 0 : 1;
-  return new Date(dayStart + dayOffset * 86400_000 + startHour * 3600_000 - IST_OFFSET_MS);
+  const dayOffset = hour < start ? 0 : 1;
+  return new Date(dayStart + dayOffset * 86400_000 + start * 3600_000 - IST_OFFSET_MS);
 }

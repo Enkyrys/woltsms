@@ -133,7 +133,7 @@ export default function DashboardPage() {
         </div>
 
         <div>
-          <label className="label">Gönderileceği tarihi (ileri tarihli sipariş)</label>
+          <label className="label">Gönderileceği tarihi (ileri tarihli sipariş · Türkiye saati)</label>
           <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="input mb-5" placeholder="Gönderileceği Tarihi" />
 
           <label className="label">Geçmiş mesajlar</label>

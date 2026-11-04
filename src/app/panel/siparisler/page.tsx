@@ -77,7 +77,7 @@ export default function SiparislerPage() {
                 <td><StatusBadge status={r.status} /></td>
                 <td>{r.processedCount}/{r.totalCount}</td>
                 <td>{r.username}</td>
-                <td>{r.scheduledAt ? new Date(r.scheduledAt).toLocaleString("tr-TR") : "-"}</td>
+                <td>{r.scheduledAt ? new Date(r.scheduledAt).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" }) : "-"}</td>
                 <td>{new Date(r.createdAt).toLocaleString("tr-TR")}</td>
                 {isAdmin && (
                   <td onClick={(e) => e.stopPropagation()}>

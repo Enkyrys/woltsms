@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveProvider, hasActiveProvider } from "@/lib/providers";
 import type { Json } from "@/db/types";
+import { parseTurkeyDateTime } from "@/lib/timezone";
 
 // WOLTSMS - servis katmanı: tüm bakiye işlemleri SQL RPC'lerinde.
 // Bu dosyalık yalnızca çağırıcı + worker orkestrasyonu.
@@ -21,7 +22,7 @@ function mapError(e: unknown): { error: string; code: number } {
     NO_VALID_RECIPIENTS: { error: "Geçerli alıcı bulunamadı.", code: 422 },
     TOO_MANY_RECIPIENTS: { error: "Sipariş başına azami alıcı sınırı aşıldı.", code: 422 },
     ALL_BLACKLISTED: { error: "Tüm alıcılar karaliste nedeniyle çıkarıldı.", code: 422 },
-    OUTSIDE_SENDING_WINDOW: { error: "Gönderimler 10:00–22:00 arasında aktiftir.", code: 422 },
+    OUTSIDE_SENDING_WINDOW: { error: "Gönderim saati dışında. Gönderimler 24 saat (00:00–23:59, Türkiye saati) aktiftir.", code: 422 },
     ALREADY_SETTLED: { error: "İşlem zaten sonuçlandırılmış.", code: 409 },
     TOPUP_NOT_FOUND: { error: "Kredi talebi bulunamadı.", code: 404 },
     MESSAGE_NOT_FOUND: { error: "Mesaj bulunamadı.", code: 404 },
@@ -80,13 +81,18 @@ export async function createOrder(opts: {
     }
   | { ok: false; error: string; code: number }
 > {
+  const scheduleAtUtc = opts.scheduleAt ? parseTurkeyDateTime(opts.scheduleAt) : null;
+  if (opts.scheduleAt && !scheduleAtUtc) {
+    return { ok: false, error: "Geçersiz gönderim tarihi. Örnek: 2026-11-05T14:30 (Türkiye saati).", code: 400 };
+  }
   try {
     // panel: oturum JWT'siyle (auth.uid() için); public API: service_role + p_user_id
     const supabase = opts.viaServiceRole ? createAdminClient() : await createClient();
     const { data, error } = await supabase.rpc("rpc_create_order", {
       p_recipients: opts.recipients as unknown as Json,
       p_message: opts.message,
-      p_schedule_at: opts.scheduleAt ?? null,
+      // Türkiye saatiyle girilen (saat dilimsiz) tarih → UTC; aksi halde Postgres UTC sanar
+      p_schedule_at: scheduleAtUtc,
       p_source: opts.source,
       p_idempotency_key: opts.idempotencyKey ?? null,
       p_contact_list_id: opts.contactListId ?? null,
@@ -205,6 +211,7 @@ export async function processSendBatch(limit = 250): Promise<{ claimed: number; 
     recipient: string;
     body: string;
     user_id: string;
+    next_attempt_at: string | null; // planlanan gönderim anı (UTC)
   }[];
   if (messages.length === 0) return { claimed: 0, sent: 0, failed: 0, retried: 0 };
 
@@ -235,7 +242,9 @@ export async function processSendBatch(limit = 250): Promise<{ claimed: number; 
     const cbFull = callbackUrl
       ? `${process.env.APP_URL || ""}/api/v1/webhooks/dlr/${provider.name}?u=${m.user_id}`
       : undefined;
-    const res = await provider.sendSms(m.recipient, m.body, { callbackUrl: cbFull });
+    // Planlanan gönderim anı sağlayıcıya iletilir; adapter bunu sağlayıcının saat
+    // dilimine (Gatum: Europe/London) çevirir. Geçmiş bir an ise "şimdi" kullanılır.
+    const res = await provider.sendSms(m.recipient, m.body, { callbackUrl: cbFull, sendAt: m.next_attempt_at });
 
     const { data: completed, error: completeErr } = await admin.rpc("rpc_complete_send", {
       p_message_id: m.id,

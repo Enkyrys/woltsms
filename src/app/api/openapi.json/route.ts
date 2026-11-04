@@ -34,7 +34,7 @@ export async function GET() {
                   properties: {
                     recipients: { type: "array", items: { type: "string" }, maxItems: 5000 },
                     message: { type: "string", maxLength: 918 },
-                    schedule_at: { type: "string", format: "date-time", description: "ISO tarih; verilmezse 10:00–22:00 penceresi kontrol edilir" },
+                    schedule_at: { type: "string", format: "date-time", description: "ISO tarih. Saat dilimi verilmezse Türkiye saati (Europe/Istanbul) kabul edilir. Gönderim 24 saat açıktır (00:00–23:59)." },
                     callback_url: { type: "string", format: "uri", description: "DLR bildirimi için (API anahtarına kaydedilir)" },
                   },
                   required: ["recipients", "message"],

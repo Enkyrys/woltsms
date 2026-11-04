@@ -12,7 +12,7 @@ export const brand = {
   font: "'Outfit','Plus Jakarta Sans',system-ui,sans-serif",
   logoText: "WOLTSMS",
   announcementDefault:
-    "Gönderimler 10:00–22:00 saatleri arasında aktiftir. 22:00 sonrası yapılan SMS gönderimleri iptal edilecektir. Bilginize sunar, iyi çalışmalar dileriz.",
+    "Gönderimler 24 saat (00:00–23:59, Türkiye saati) aktiftir. Bilginize sunar, iyi çalışmalar dileriz.",
   sendingStartHour: 10,
   sendingEndHour: 22,
   timezone: "Europe/Istanbul",

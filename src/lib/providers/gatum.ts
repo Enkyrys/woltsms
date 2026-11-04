@@ -1,5 +1,6 @@
 import { decrypt, timingSafeEqualStr } from "@/lib/security";
-import type { DlrItem, ProviderInterface, SendResult, BalanceResult } from "./types";
+import type { DlrItem, ProviderInterface, SendResult, BalanceResult, SendOptions } from "./types";
+import { PROVIDER_TZ, providerSchedule } from "@/lib/timezone";
 import { fetchWithRetry, mapProviderError } from "./types";
 
 // ============================================================
@@ -12,6 +13,11 @@ import { fetchWithRetry, mapProviderError } from "./types";
 //   Sonraki TÜM isteklerde header: X-Access-Token
 //
 // Gönderim:  POST /send  → gövde JSON DİZİSİ (istek başına en fazla 100 SMS)
+//   paket alanları: number[], senderID, text, type, beginDate (YYYY-MM-DD),
+//   beginTime (HH:MM), lifetime, delivery, campaign, callback_url
+//   ÖNEMLİ: sağlayıcı İngiltere'dedir; beginDate/beginTime İngiltere saatiyle
+//   (Europe/London, GMT/BST) yorumlanır. Türkiye saatiyle girilen gönderim anı
+//   burada Europe/London'a çevrilerek iletilir (config.timezone ile değiştirilebilir).
 //   yanıt: {"status":true,"data":{"<phone>":[{"id_state":123}]}}
 //   hata : {"status":false,"error_code":400,"errors":"..."}  (veya numara bazlı {"error":"..."})
 // Bakiye:    GET /me   → data.balance_units + data.currency  (IP başına 15 dk'da 1 istek!)
@@ -49,6 +55,8 @@ export type GatumConfig = {
   campaign?: string; // istatistik grubu (default WOLTSMS)
   type?: string; // sms | flashsms | wappush | vcard | hlr | mnp (default sms)
   lifetime?: number; // saniye, default 86400
+  timezone?: string; // sağlayıcının saat dilimi (beginDate/beginTime), default Europe/London
+  sendSchedule?: boolean; // false → beginDate/beginTime gönderilmez (default true)
   timeoutMs?: number;
   maxRetries?: number;
 };
@@ -111,6 +119,12 @@ function normalizeConfig(raw: Record<string, unknown> | undefined): GatumConfig 
     campaign: str(pick("campaign")),
     type: str(pick("type")),
     lifetime: num(pick("lifetime")),
+    timezone: str(pick("timezone", "provider_timezone", "time_zone")),
+    sendSchedule: (() => {
+      const v = pick("sendSchedule", "send_schedule");
+      if (v === undefined) return undefined;
+      return !(v === false || v === "false" || v === 0 || v === "0");
+    })(),
     timeoutMs: num(pick("timeoutMs", "timeout_ms")),
     maxRetries: num(pick("maxRetries", "max_retries")),
   };
@@ -251,16 +265,24 @@ export class GatumProvider implements ProviderInterface {
 
   // ---------------- gönderim ----------------
 
-  private buildPackage(
+  /** Sağlayıcıya iletilecek planlı gönderim alanları (İngiltere saati). */
+  scheduleFields(sendAt?: Date | string | null): { beginDate: string; beginTime: string } | Record<string, never> {
+    if (this.config.sendSchedule === false) return {};
+    const { beginDate, beginTime } = providerSchedule(sendAt ?? null, this.config.timezone || PROVIDER_TZ);
+    return { beginDate, beginTime };
+  }
+
+  buildPackage(
     numbers: string[],
     text: string,
-    opts?: { callbackUrl?: string; sender?: string }
+    opts?: SendOptions
   ): Record<string, unknown> {
     return {
       number: numbers,
       senderID: opts?.sender || this.senderId,
       text,
       type: this.config.type || "sms",
+      ...this.scheduleFields(opts?.sendAt),
       lifetime: this.config.lifetime ?? 86400,
       delivery: true,
       campaign: this.config.campaign || "WOLTSMS",
@@ -347,7 +369,7 @@ export class GatumProvider implements ProviderInterface {
   async sendSms(
     to: string,
     text: string,
-    opts?: { sender?: string; callbackUrl?: string }
+    opts?: SendOptions
   ): Promise<SendResult> {
     const endpoint = this.config.sendEndpoint || "/send";
     const payload = [this.buildPackage([to], text, opts)];
@@ -382,7 +404,7 @@ export class GatumProvider implements ProviderInterface {
   }
 
   // Doküman: istek başına en fazla 100 SMS; istekler eşzamanlı değil, senkron gönderilmeli.
-  async sendBulk(messages: { to: string; text: string }[]): Promise<SendResult[]> {
+  async sendBulk(messages: { to: string; text: string; sendAt?: Date | string | null }[]): Promise<SendResult[]> {
     const out: SendResult[] = new Array(messages.length);
     const CHUNK = 100;
 
@@ -392,7 +414,7 @@ export class GatumProvider implements ProviderInterface {
       if (unique.size !== slice.length) {
         // aynı numaraya iki paket aynı yanıt anahtarında çakışır → tek tek gönder
         for (let j = 0; j < slice.length; j++) {
-          out[i + j] = await this.sendSms(slice[j].to, slice[j].text);
+          out[i + j] = await this.sendSms(slice[j].to, slice[j].text, { sendAt: slice[j].sendAt });
         }
         continue;
       }
@@ -402,9 +424,9 @@ export class GatumProvider implements ProviderInterface {
     return out;
   }
 
-  private async postPackages(slice: { to: string; text: string }[]): Promise<SendResult[]> {
+  private async postPackages(slice: { to: string; text: string; sendAt?: Date | string | null }[]): Promise<SendResult[]> {
     const endpoint = this.config.sendEndpoint || "/send";
-    const payload = slice.map((m) => this.buildPackage([m.to], m.text));
+    const payload = slice.map((m) => this.buildPackage([m.to], m.text, { sendAt: m.sendAt }));
 
     let token: string;
     try {

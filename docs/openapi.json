@@ -99,7 +99,7 @@
                   "schedule_at": {
                     "type": "string",
                     "format": "date-time",
-                    "description": "ISO 8601; 10:00–22:00 (Europe/Istanbul) dışına kaydırılır."
+                    "description": "ISO 8601. Saat dilimi verilmezse Türkiye saati (Europe/Istanbul) kabul edilir. Gönderim 24 saat açıktır (00:00–23:59)."
                   },
                   "callback_url": {
                     "type": "string",
