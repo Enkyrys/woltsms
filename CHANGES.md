@@ -10,6 +10,8 @@
 | `src/app/panel/siparisler/page.tsx` | "Sağlayıcı Saati (Sempico)" sütunu + detayda gönderici/sağlayıcı saati ve gönderim durumu |
 | `supabase/migrations/0015_hour_setting_format.sql` | YENİ — `invalid input syntax for type integer: "23:59"` hatası düzeltildi: çalışma saatleri "24:00"/"23:59" yazılsa da (panel ya da Table Editor) kayıt öncesi tam saate çevrilir (24:00→0, 23:59→24); eski 10:00–22:00 duyurusu güncellenir |
 | `src/app/panel/admin/sistem/page.tsx`, `admin/settings` API | Başlangıç/bitiş SS:DD biçiminde girilir ve gösterilir (24:00 / 23:59), geçersiz biçim reddedilir |
+| `supabase/migrations/0016_optional_future_schedule.sql` | YENİ — isteğe bağlı ileri tarihli sipariş: tarih boşsa kayıt anında, oluşturma saatinden sonraki bir tarih seçilirse o an gelince (Sempico UTC saatine göre) worker Sempico API ile gönderir. 0014'teki "her zaman hemen" kuralının yerini alır |
+| `src/app/panel/dashboard/page.tsx` | "Gönderileceği tarih" alanı geri geldi (isteğe bağlı, en erken şimdi+1 dk); seçilen saat ve Sempico UTC karşılığı gösterilir; geçmiş zaman reddedilir |
 | `src/lib/timezone.ts` | YENİ — kullanıcı saati ↔ UTC ↔ sağlayıcı saati çevirileri |
 | `src/app/panel/dashboard/page.tsx` | Seçilen tarih tarayıcının saat dilimine göre UTC ISO olarak gönderilir (önceden saat dilimsiz gidiyor, sunucu UTC sandığı için UTC+4'te SMS 4 saat geç çıkıyordu); altında "sağlayıcıya iletilecek (UTC)" saati gösterilir |
 | `src/lib/providers/gatum.ts` | Her SMS paketine `beginDate` (YYYY-MM-DD) + `beginTime` (HH:MM) **UTC (Sempico saati)** ile eklenir; UTC+4 kullanıcının 10:02'si → 06:02. `config.timezone` / `config.send_schedule=false` ile ayarlanabilir |
