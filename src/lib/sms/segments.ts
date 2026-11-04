@@ -157,3 +157,24 @@ export function nextWindowStart(
   const dayOffset = hour < start ? 0 : 1;
   return new Date(dayStart + dayOffset * 86400_000 + start * 3600_000 - IST_OFFSET_MS);
 }
+
+// Ayar değeri "24:00", "23:59", "10", "10:00", "22.00" olabilir → tam saat (SQL normalize_hour_setting ile aynı).
+//   başlangıç "24:00" → 0, bitiş "23:59" → 24, bitiş "22:30" → 23
+export function normalizeHourSetting(kind: "start" | "end", raw: unknown): number | null {
+  const m = String(raw ?? "").trim().match(/^(\d{1,2})(?:[:.](\d{1,2}))?(?::\d{1,2})?$/);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const mi = Number(m[2] ?? 0);
+  if (mi > 59 || h > 24) return null;
+  if (kind === "start") return h >= 24 ? 0 : h;
+  if (mi > 0) h += 1;
+  return h <= 0 || h >= 24 ? 24 : h;
+}
+
+// panelde gösterim: başlangıç 0 → "24:00", bitiş 24 → "23:59"
+export function displayHourSetting(kind: "start" | "end", raw: unknown): string {
+  const h = normalizeHourSetting(kind, raw);
+  if (h === null) return String(raw ?? "");
+  if (kind === "start") return h === 0 ? "24:00" : `${String(h).padStart(2, "0")}:00`;
+  return h === 24 ? "23:59" : `${String(h).padStart(2, "0")}:00`;
+}

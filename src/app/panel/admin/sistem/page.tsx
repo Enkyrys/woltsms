@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { PageTitle, Card, Field, Pagination, Loading } from "@/components/ui";
+import { normalizeHourSetting, displayHourSetting } from "@/lib/sms-segments";
 
 type Provider = {
   id: string;
@@ -105,7 +106,16 @@ export default function SistemPage() {
   useEffect(() => {
     loadProviders().finally(() => setLoading(false));
     fetch("/api/panel/admin/settings?scope=announce").then(async (r) => { const j = await r.json(); if (j.success) setAnns(j.data); });
-    fetch("/api/panel/admin/settings?scope=system").then(async (r) => { const j = await r.json(); if (j.success) setSys(j.data); });
+    fetch("/api/panel/admin/settings?scope=system").then(async (r) => {
+      const j = await r.json();
+      if (j.success) {
+        const d = { ...(j.data as Record<string, string>) };
+        // veritabanındaki tam saat → "24:00" / "23:59" gösterimi
+        if (d.sending_start_hour !== undefined) d.sending_start_hour = displayHourSetting("start", d.sending_start_hour);
+        if (d.sending_end_hour !== undefined) d.sending_end_hour = displayHourSetting("end", d.sending_end_hour);
+        setSys(d);
+      }
+    });
     fetch("/api/panel/admin/settings?scope=audit").then(async (r) => { const j = await r.json(); if (j.success) { setAudit(j.data); setAtotal(j.meta?.total ?? j.data.length); } });
     fetch("/api/panel/admin/settings?scope=health").then(async (r) => { const j = await r.json(); if (j.success) setHealth(j.data); }).catch(() => setHealth(null));
   }, []);
@@ -214,12 +224,20 @@ export default function SistemPage() {
   };
 
   const saveSys = async () => {
+    for (const [k, kind] of [["sending_start_hour", "start"], ["sending_end_hour", "end"]] as const) {
+      if (sys[k] !== undefined && normalizeHourSetting(kind, sys[k]) === null) {
+        alert("Saat biçimi geçersiz. Örnek: başlangıç 24:00, bitiş 23:59");
+        return;
+      }
+    }
     setSysSaving(true);
+    const errors: string[] = [];
     for (const [key, value] of Object.entries(sys)) {
-      await fetch("/api/panel/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "system-upsert", key, value }) });
+      const r = await fetch("/api/panel/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "system-upsert", key, value }) });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); errors.push(`${key}: ${j.message || r.status}`); }
     }
     setSysSaving(false);
-    alert("Gönderim kuralları kaydedildi.");
+    alert(errors.length ? `Bazı ayarlar kaydedilemedi:\n${errors.join("\n")}` : "Gönderim kuralları kaydedildi.");
   };
 
   if (loading) return <Loading />;
@@ -399,8 +417,8 @@ export default function SistemPage() {
       {tab === "system" && (
         <Card>
           <div className="grid md:grid-cols-2 gap-3 max-w-2xl">
-            <Field label="Gönderim Başlangıç (saat · 24 veya 0 = 24:00)"><input className="input" inputMode="numeric" value={sys.sending_start_hour ?? "0"} onChange={(e) => setSys({ ...sys, sending_start_hour: e.target.value })} /></Field>
-            <Field label="Gönderim Bitiş (saat · 24 = 23:59'a kadar)"><input className="input" inputMode="numeric" value={sys.sending_end_hour ?? "24"} onChange={(e) => setSys({ ...sys, sending_end_hour: e.target.value })} /></Field>
+            <Field label="Gönderim Başlangıç (SS:DD)"><input className="input" placeholder="24:00" value={sys.sending_start_hour ?? "24:00"} onChange={(e) => setSys({ ...sys, sending_start_hour: e.target.value })} /></Field>
+            <Field label="Gönderim Bitiş (SS:DD)"><input className="input" placeholder="23:59" value={sys.sending_end_hour ?? "23:59"} onChange={(e) => setSys({ ...sys, sending_end_hour: e.target.value })} /></Field>
             <Field label="Varsayılan Birim Fiyat"><input className="input" value={sys.default_unit_price || "1"} onChange={(e) => setSys({ ...sys, default_unit_price: e.target.value })} /></Field>
             <Field label="Mesaj Saklama (gün, KVKK)"><input className="input" value={sys.message_retention_days || "180"} onChange={(e) => setSys({ ...sys, message_retention_days: e.target.value })} /></Field>
             <Field label="Sipariş başına azami alıcı"><input className="input" value={sys.max_recipients_per_order || "5000"} onChange={(e) => setSys({ ...sys, max_recipients_per_order: e.target.value })} /></Field>

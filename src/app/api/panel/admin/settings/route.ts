@@ -1,3 +1,4 @@
+import { normalizeHourSetting } from "@/lib/sms-segments";
 import { z } from "zod";
 import { getSession, hasPermissionSync } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -408,9 +409,16 @@ export async function POST(req: Request) {
     if (!hasPermissionSync(s, "settings.manage") && !s.isAdmin) return forbidden();
     const key = String(body.key || "");
     if (!key) return badRequest("key gerekli.");
+    let value = String(body.value ?? "");
+    // çalışma saatleri "24:00" / "23:59" biçiminde gelebilir → veritabanına tam saat yazılır
+    if (key === "sending_start_hour" || key === "sending_end_hour") {
+      const h = normalizeHourSetting(key === "sending_start_hour" ? "start" : "end", value);
+      if (h === null) return badRequest("Saat biçimi geçersiz. Örnek: 24:00, 23:59, 10:00");
+      value = String(h);
+    }
     await admin
       .from("system_settings")
-      .upsert({ key, value: String(body.value ?? "") }, { onConflict: "key" });
+      .upsert({ key, value }, { onConflict: "key" });
     await admin.from("audit_logs").insert({ actor_id: s.id, action: "settings.system", payload: { key } as never });
     return ok({ saved: true }, "Ayar kaydedildi.");
   }
