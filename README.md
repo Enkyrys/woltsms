@@ -208,6 +208,10 @@ uygulanmış olması gerekir.
   `beginDate` / `beginTime` alanlarında **UTC'ye** çevrilerek iletilir
   (UTC+4'te 10:02 → 06:02; `src/lib/timezone.ts`).
   Farklı bir saat dilimi gerekirse sağlayıcı `config.timezone` ile değiştirilebilir.
+- **Sağlayıcı saati:** `orders.provider_scheduled_at` Sempico'nun saatiyle (UTC) gönderim
+  zamanını tutar ve Siparişler sayfasında gösterilir. Worker (her dakika) siparişi
+  ancak Sempico saati bu zamana geldiğinde alır ve Sempico API'ye gönderir;
+  gönderim başladığında `provider_triggered_at` yazılır.
 - **Admin sipariş bildirimi:** Bayilerden yeni sipariş geldiğinde admin panelinde
   5 saniyelik güçlü sesli uyarı çalar (üst bardaki 🔊 düğmesiyle aç/kapat).
 - **Segment:** GSM 160/153, UCS-2 70/67. Kodlama GSM 03.38 tablosuna göre belirlenir:
