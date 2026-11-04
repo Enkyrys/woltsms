@@ -158,6 +158,20 @@ export async function approveTopup(topupId: string, amount: number, note?: strin
   }
 }
 
+export async function rejectTopup(topupId: string, reason: string): Promise<RpcResult> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("rpc_reject_topup", {
+      p_topup_id: topupId,
+      p_reason: reason,
+    });
+    if (error) return { ok: false, ...mapError(new Error(error.message)) };
+    return { ok: true, data: data as Record<string, unknown> };
+  } catch (e) {
+    return { ok: false, ...mapError(e) };
+  }
+}
+
 export async function adminAdjust(userId: string, amount: number, description?: string): Promise<RpcResult> {
   try {
     const supabase = await createClient();

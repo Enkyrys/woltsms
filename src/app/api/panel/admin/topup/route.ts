@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { getSession, hasPermissionSync } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient as createUserClient } from "@/lib/supabase/server";
-import { approveTopup, adminAdjust } from "@/lib/services";
+import { approveTopup, rejectTopup, adminAdjust } from "@/lib/services";
 import { ok, unauthorized, forbidden, badRequest } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -143,13 +142,9 @@ export async function POST(req: Request) {
   const rj = RejectSchema.safeParse(body);
   if (rj.success) {
     if (!hasPermissionSync(s, "credit.approve") && !s.isAdmin) return forbidden();
-    const user = await createUserClient(); // has_permission(auth.uid()) ister
-    const { data, error } = await user.rpc("rpc_reject_topup", {
-      p_topup_id: rj.data.topupId,
-      p_reason: rj.data.reason,
-    });
-    if (error) return badRequest(error.message);
-    return ok(data as Record<string, unknown>, "Talep reddedildi.");
+    const r = await rejectTopup(rj.data.topupId, rj.data.reason); // has_permission(auth.uid()) ister
+    if (!r.ok) return badRequest(r.error);
+    return ok(r.data, "Talep reddedildi.");
   }
 
   const aj = AdjustSchema.safeParse(body);

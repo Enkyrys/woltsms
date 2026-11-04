@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { generateApiKey } from "@/lib/security";
+import { generateApiKey, encrypt, randomToken } from "@/lib/security";
 import { ok, unauthorized, badRequest, notFound } from "@/lib/api-response";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ export async function GET() {
   const admin = createAdminClient();
   const { data } = await admin
     .from("api_keys")
-    .select("id, name, key_prefix, status, ip_whitelist, callback_url, last_used_at, created_at")
+    .select("id, name, key_prefix, key_encrypted, status, ip_whitelist, callback_url, last_used_at, created_at")
     .eq("user_id", s.id)
     .order("created_at", { ascending: false });
 
@@ -22,6 +22,7 @@ export async function GET() {
       id: k.id,
       name: k.name,
       keyPrefix: k.key_prefix,
+      revealable: !!k.key_encrypted, // şifreli kopya varsa tekrar gösterilebilir
       status: k.status,
       ipWhitelist: Array.isArray(k.ip_whitelist) ? (k.ip_whitelist as string[]).join(", ") : "",
       callbackUrl: k.callback_url ?? "",
@@ -47,6 +48,7 @@ export async function POST(req: Request) {
   if (!parsed.success) return badRequest("Geçersiz istek.");
 
   const { key, prefix, hash } = generateApiKey();
+  const secret = `wss_${randomToken(24)}`; // isteğe bağlı X-Signature imzası için
   const ips = (parsed.data.ipWhitelist || "")
     .split(/[\n,]/)
     .map((x) => x.trim())
@@ -60,6 +62,8 @@ export async function POST(req: Request) {
       name: parsed.data.name || "API Anahtarı",
       key_prefix: prefix,
       key_hash: hash,
+      key_encrypted: encrypt(key),
+      hmac_secret_encrypted: encrypt(secret),
       ip_whitelist: ips,
       callback_url: parsed.data.callbackUrl || null,
     })
@@ -72,10 +76,14 @@ export async function POST(req: Request) {
       id: data.id,
       name: data.name,
       keyPrefix: data.key_prefix,
-      key, // YALNIZCA BURADA, BİR KEZ
+      key,
+      secret,
+      // eski arayüzle uyum için takma adlar
+      apiKey: key,
+      apiSecret: secret,
       createdAt: data.created_at,
     },
-    "API anahtarı oluşturuldu. Bu anahtar yalnızca bir kez gösterilir."
+    "API anahtarı oluşturuldu."
   );
 }
 

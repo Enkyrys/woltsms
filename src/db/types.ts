@@ -176,6 +176,7 @@ export interface ApiKey {
   callback_url: string | null;
   status: "active" | "disabled";
   hmac_secret_encrypted: string | null;
+  key_encrypted?: string | null;
   last_used_at: string | null;
   created_at: string;
 }
