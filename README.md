@@ -208,6 +208,9 @@ uygulanmış olması gerekir.
   `beginDate` / `beginTime` alanlarında **UTC'ye** çevrilerek iletilir
   (UTC+4'te 10:02 → 06:02; `src/lib/timezone.ts`).
   Farklı bir saat dilimi gerekirse sağlayıcı `config.timezone` ile değiştirilebilir.
+- **Gönderim anı:** İleri tarihli sipariş yoktur. Sipariş veritabanına kaydedildiği
+  an Sempico API'ye gönderilir; oluşturma saati UTC'ye çevrilip `beginDate`/`beginTime`
+  olarak iletilir (`0014_send_on_create.sql`). `schedule_at` alanı yok sayılır.
 - **Sağlayıcı saati:** `orders.provider_scheduled_at` Sempico'nun saatiyle (UTC) gönderim
   zamanını tutar ve Siparişler sayfasında gösterilir. Worker (her dakika) siparişi
   ancak Sempico saati bu zamana geldiğinde alır ve Sempico API'ye gönderir;
