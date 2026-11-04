@@ -13,8 +13,9 @@ export const brand = {
   logoText: "WOLTSMS",
   announcementDefault:
     "Gönderimler 24 saat (00:00–23:59, Türkiye saati) aktiftir. Bilginize sunar, iyi çalışmalar dileriz.",
-  sendingStartHour: 10,
-  sendingEndHour: 22,
+  sendingStartHour: 0, // 24:00
+  sendingEndHour: 24, // 23:59
+  providerName: "ENKYRYS", // ana SMS sağlayıcısının panelde görünen adı
   timezone: "Europe/Istanbul",
 } as const;
 

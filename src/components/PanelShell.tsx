@@ -20,7 +20,8 @@ function smsCount(balance: string | number, unitPrice?: string | number): number
 const MENU: { href: string; label: string; perm?: string; admin?: boolean }[] = [
   { href: "/panel/dashboard", label: "Dashboard" },
   { href: "/panel/rehber", label: "Rehber" },
-  { href: "/panel/siparisler", label: "Siparişler" },
+  { href: "/panel/siparisler", label: "Kampanyalar" },
+  { href: "/panel/zamanlanmis", label: "Zamanlanmış Kampanyalar", perm: "sms.send" },
   { href: "/panel/kullanicilar", label: "Kullanıcılar", perm: "users.manage" },
   { href: "/panel/roller", label: "Roller", perm: "roles.manage" },
   { href: "/panel/karaliste", label: "Karaliste" },

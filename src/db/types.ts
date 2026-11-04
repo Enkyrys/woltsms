@@ -4,7 +4,9 @@
 export type Json = string | number | boolean | null | { [k: string]: Json | undefined } | Json[];
 
 export type QuotaType = "variable" | "fixed";
-export type OrderStatus = "pending" | "scheduled" | "processing" | "completed" | "failed" | "cancelled";
+// draft=Taslak, scheduled=Zamanlandı, pending=Gönderim Bekliyor, processing=Gönderiliyor,
+// completed=Gönderildi, partial=Kısmen Gönderildi, failed=Başarısız, cancelled=İptal Edildi
+export type OrderStatus = "draft" | "pending" | "scheduled" | "processing" | "completed" | "partial" | "failed" | "cancelled";
 export type MessageStatus = "queued" | "sending" | "sent" | "delivered" | "failed" | "refunded";
 export type TxType = "topup" | "debit" | "refund" | "adjust" | "reserve" | "release";
 export type TopupMethod = "bank" | "crypto";
@@ -86,11 +88,18 @@ export interface Order {
   message: string | null;
   note: string | null;
   scheduled_at: string | null;
-  /** Sağlayıcı (Sempico) saatiyle gönderim zamanı — provider_timezone duvar saati, ör. "2026-11-05T06:02:00" */
+  /** Sağlayıcı (ENKYRYS) saatiyle gönderim zamanı — provider_timezone duvar saati, ör. "2026-11-05T06:02:00" */
   provider_scheduled_at: string | null;
   provider_timezone: string;
   /** Sağlayıcı API'sine gönderimin tetiklendiği an */
   provider_triggered_at: string | null;
+  /** Kampanya adı */
+  name: string | null;
+  /** Taslak: {numbers, contactListId, scheduleAt} */
+  draft_payload: Json | null;
+  /** Sağlayıcı API'sinin son yanıtı */
+  last_provider_response: Json | null;
+  dispatch_finished_at: string | null;
   source: "panel" | "api";
   created_by: string | null;
   idempotency_key: string | null;
@@ -115,6 +124,8 @@ export interface SmsMessage {
   refunded_at: string | null;
   sent_at: string | null;
   delivered_at: string | null;
+  provider_response: Json | null; // son sağlayıcı API yanıtı
+  last_attempt_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -332,6 +343,23 @@ export interface ImportJob {
   updated_at: string;
 }
 
+// Sağlayıcı API'sine yapılan her gönderim denemesi (başarılı/başarısız ayrı satır)
+export interface SmsSendAttempt {
+  id: number;
+  message_id: string;
+  order_id: string;
+  user_id: string;
+  attempt: number;
+  ok: boolean;
+  outcome: "sent" | "retry" | "failed" | "ignored";
+  provider: string | null;
+  http_status: number | null;
+  error_code: string | null;
+  provider_message_id: string | null;
+  response: Json | null;
+  created_at: string;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -362,6 +390,7 @@ export interface Database {
       audit_logs: { Row: AuditLog; Insert: Partial<AuditLog>; Update: Partial<AuditLog> };
       jobs: { Row: Job; Insert: Partial<Job>; Update: Partial<Job> };
       import_jobs: { Row: ImportJob; Insert: Partial<ImportJob>; Update: Partial<ImportJob> };
+      sms_send_attempts: { Row: SmsSendAttempt; Insert: Partial<SmsSendAttempt>; Update: Partial<SmsSendAttempt> };
     };
     Functions: {
       rpc_create_order: {
@@ -380,10 +409,21 @@ export interface Database {
       user_has_permission: { Args: { p_user_id: string; p_code: string }; Returns: boolean };
       rpc_claim_send_batch: { Args: { p_limit?: number }; Returns: SmsMessage[] };
       rpc_complete_send: {
-        Args: { p_message_id: string; p_ok: boolean; p_provider_message_id?: string | null; p_error?: string | null };
+        Args: {
+          p_message_id: string; p_ok: boolean; p_provider_message_id?: string | null; p_error?: string | null;
+          p_retryable?: boolean; p_response?: Json | null; p_http_status?: number | null; p_provider?: string | null;
+        };
         Returns: Json;
       };
       rpc_cancel_out_of_window: { Args: Record<string, never>; Returns: number };
+      rpc_update_scheduled_order: {
+        Args: { p_order_id: string; p_name?: string | null; p_message?: string | null; p_schedule_at?: string | null };
+        Returns: Json;
+      };
+      rpc_save_order_draft: {
+        Args: { p_name: string | null; p_message: string; p_payload?: Json; p_draft_id?: string | null };
+        Returns: Json;
+      };
       rpc_expire_topups: { Args: Record<string, never>; Returns: number };
       rpc_finalize_message: { Args: { p_message_id: string; p_provider_message_id?: string | null }; Returns: Json };
       rpc_refund_message: { Args: { p_message_id: string; p_reason?: string | null }; Returns: Json };

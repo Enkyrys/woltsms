@@ -82,9 +82,9 @@ export async function createOrder(opts: {
   | { ok: false; error: string; code: number }
 > {
   // Gönderim zamanı:
-  //  - scheduleAt boş  → sipariş kaydedildiği anda Sempico'ya gönderilir.
+  //  - scheduleAt boş  → sipariş kaydedildiği anda ENKYRYS'e gönderilir.
   //  - scheduleAt dolu → oluşturma saatinden SONRAKİ bir an olmalı; sipariş "Zamanlı"
-  //    bekler, o an gelince worker Sempico API ile gönderir.
+  //    bekler, o an gelince worker ENKYRYS API ile gönderir.
   // Saat dilimli ISO (panel, tarayıcıdan) olduğu gibi; saat dilimsiz değer (API) Türkiye saati.
   let scheduleAtUtc: string | null = null;
   if (opts.scheduleAt) {
@@ -267,15 +267,21 @@ export async function processSendBatch(limit = 250): Promise<{ claimed: number; 
       ? `${process.env.APP_URL || ""}/api/v1/webhooks/dlr/${provider.name}?u=${m.user_id}`
       : undefined;
     // Gönderim anı = siparişin gönderim zamanı (hemen: oluşturma anı, ileri tarihli: seçilen an).
-    // Adapter bunu Sempico saatine (UTC) çevirip beginDate/beginTime olarak iletir;
+    // Adapter bunu ENKYRYS saatine (UTC) çevirip beginDate/beginTime olarak iletir;
     // an geçmişte kaldıysa (yeniden deneme) "şimdi" kullanılır.
     const res = await provider.sendSms(m.recipient, m.body, { callbackUrl: cbFull, sendAt: m.next_attempt_at ?? m.created_at });
 
+    // Sonuç + API yanıtı tek işlemde kaydedilir (sms_send_attempts: başarılı/başarısız ayrı satır).
+    // Kalıcı hatalar (retryable=false) tekrar denenmez; geçiciler üstel beklemeyle yeniden denenir.
     const { data: completed, error: completeErr } = await admin.rpc("rpc_complete_send", {
       p_message_id: m.id,
       p_ok: res.ok,
       p_provider_message_id: res.providerMessageId ?? null,
       p_error: res.ok ? null : `${res.errorCode ?? "ERROR"}${res.error ? `: ${res.error}` : ""}`,
+      p_retryable: res.ok ? true : res.retryable !== false,
+      p_response: (res.raw ?? null) as Json,
+      p_http_status: res.httpStatus ?? null,
+      p_provider: provider.name,
     });
     if (completeErr) return; // idempotent: aynı mesaj iki kez işlenirse 'ignored' döner
 
@@ -516,6 +522,15 @@ export async function runWorker(): Promise<{
     checkProviderBalance().catch(() => null),
     processImportJobs(3).catch(() => 0),
   ]);
+
+  // 7/24 izleme: zamanlayıcının en son ne zaman çalıştığı (Sistem > Sağlık'ta gösterilir)
+  await admin
+    .from("system_settings")
+    .upsert(
+      { key: "worker_last_run_at", value: new Date().toISOString(), description: "Zamanlayıcının (worker) son çalışma anı" },
+      { onConflict: "key" }
+    )
+    .then(() => undefined, () => undefined);
 
   return { batch, callbacks, expiredTopups: expired, cancelled, requeued, providerBalance, imports };
 }

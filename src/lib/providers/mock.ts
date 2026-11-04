@@ -7,13 +7,13 @@ export class MockProvider implements ProviderInterface {
   async sendSms(to: string, _text: string): Promise<SendResult> {
     // test için özel durumlar
     if (to.endsWith("0000")) {
-      return { ok: false, errorCode: "PROVIDER_BAD_PHONE", error: "Mock: geçersiz numara", retryable: false };
+      return { ok: false, errorCode: "PROVIDER_BAD_PHONE", error: "Mock: geçersiz numara", retryable: false, httpStatus: 200, raw: { mock: true, error: "incorrect_phone" } };
     }
     if (to.endsWith("9999")) {
-      return { ok: false, errorCode: "PROVIDER_NO_MONEY", error: "Mock: yetersiz sağlayıcı bakiyesi", retryable: true };
+      return { ok: false, errorCode: "PROVIDER_NO_MONEY", error: "Mock: yetersiz sağlayıcı bakiyesi", retryable: true, httpStatus: 200, raw: { mock: true, error: "no_money" } };
     }
     const id = `mock-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-    return { ok: true, providerMessageId: id };
+    return { ok: true, providerMessageId: id, httpStatus: 200, raw: { mock: true, id_state: id } };
   }
 
   async sendBulk(messages: { to: string; text: string }[]): Promise<SendResult[]> {

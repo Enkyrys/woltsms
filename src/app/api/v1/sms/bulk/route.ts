@@ -70,7 +70,7 @@ export async function POST(req: Request) {
     results.push({ order_id: r.orderId, total_count: r.totalCount, total_cost: r.totalCost, status: r.status });
   }
 
-  // siparişler veritabanına kaydedildi → hemen Sempico API ile gönder
+  // siparişler veritabanına kaydedildi → hemen ENKYRYS API ile gönder
   after(() => sendOrderNow(300));
 
   return applyCorsHeaders(

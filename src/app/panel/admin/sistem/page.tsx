@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { PageTitle, Card, Field, Pagination, Loading } from "@/components/ui";
 import { normalizeHourSetting, displayHourSetting } from "@/lib/sms-segments";
+import { PROVIDER_DEFAULT_BASE_URL } from "@/config/provider";
 
 type Provider = {
   id: string;
@@ -25,13 +26,13 @@ const PROVIDER_META: Record<string, { label: string; hint: string; fields: { key
     fields: [],
   },
   gatum: {
-    label: "Gatum SMS (REST API)",
+    label: "ENKYRYS SMS (REST API)",
     hint:
       "REST API v1: kullanıcı adı/şifre ile /authorize → /access-token alınır, isteklerde X-Access-Token kullanılır. " +
       "Gönderim POST /send (istek başına en fazla 100 numara), bakiye GET /me (IP başına 15 dk'da 1 istek), " +
       "bağlantı testi ücretsiz POST /replacement ile yapılır.",
     fields: [
-      { key: "username", label: "Kullanıcı Adı (hesap girişi)", placeholder: "Gatum/Sempico panel girişi" },
+      { key: "username", label: "Kullanıcı Adı (hesap girişi)", placeholder: "Gatum/ENKYRYS panel girişi" },
       { key: "password", label: "Şifre", placeholder: "Hesap şifresi", type: "password" },
       { key: "accessToken", label: "Access Token (opsiyonel — şifre yerine)", placeholder: "Şifre yerine doğrudan token", type: "password" },
       { key: "securityKey", label: "Güvenlik Anahtarı (opsiyonel, DLR API_KEY)", placeholder: "Hesapta tanımlıysa", type: "password" },
@@ -55,7 +56,7 @@ export default function SistemPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [active, setActive] = useState("mock");
   const [kind, setKind] = useState<"mock" | "gatum" | "http">("mock");
-  const [baseUrl, setBaseUrl] = useState("https://restapi.sempico.solutions/v1");
+  const [baseUrl, setBaseUrl] = useState(PROVIDER_DEFAULT_BASE_URL);
   const [senderId, setSenderId] = useState("WOLTSMS");
   const [threshold, setThreshold] = useState("1000");
   const [creds, setCreds] = useState<Record<string, string>>({});
@@ -129,7 +130,7 @@ export default function SistemPage() {
     setBalMsg(null);
     setCreds({});
     const row = providers.find((x) => x.provider === k);
-    const fallbackUrl = k === "gatum" ? "https://restapi.sempico.solutions/v1" : "";
+    const fallbackUrl = k === "gatum" ? PROVIDER_DEFAULT_BASE_URL : "";
     setBaseUrl(row?.baseUrl || fallbackUrl);
     setSenderId(row?.senderId || "WOLTSMS");
     setThreshold(String(row?.lowBalanceThreshold ?? "1000"));
@@ -267,7 +268,7 @@ export default function SistemPage() {
 
             <div className="grid md:grid-cols-2 gap-3">
               <Field label={kind === "gatum" ? "Base URL (REST API)" : "Base URL"}>
-                <input className="input" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://restapi.sempico.solutions/v1" />
+                <input className="input" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder={PROVIDER_DEFAULT_BASE_URL} />
               </Field>
               <Field label="Gönderen (senderID)">
                 <input className="input" value={senderId} onChange={(e) => setSenderId(e.target.value)} />
@@ -306,7 +307,7 @@ export default function SistemPage() {
 
             {kind === "gatum" && (
               <div className="text-[12px] bg-slate-50 border rounded-lg p-3 mb-3">
-                <div className="font-bold mb-1">İleti durumları (DLR) için Sempico/Gatum paneline girilecek adres</div>
+                <div className="font-bold mb-1">İleti durumları (DLR) için ENKYRYS/Gatum paneline girilecek adres</div>
                 <div className="font-mono break-all select-all">{typeof window !== "undefined" ? window.location.origin : ""}/api/v1/webhooks/dlr/gatum</div>
                 <div className="text-slate-500 mt-1">
                   REST API, teslimat raporlarını bu adrese <b>JSON dizisi</b> olarak POST eder; hesapta onay modu açıksa sistem
@@ -429,7 +430,7 @@ export default function SistemPage() {
           <p className="text-[12px] text-slate-500 mt-3">
             Varsayılan çalışma saati 24 saattir: başlangıç 24:00, bitiş 23:59 (Türkiye saati). Başlangıç ve bitiş
             aynı (ya da 0/24) ise gönderim gün boyu açıktır; pencere dışında kalan gönderimler iptal edilir ve rezerv iade edilir.
-            Kullanıcının kendi saatiyle seçtiği gönderim zamanı sağlayıcıya UTC (Sempico saati) olarak iletilir; ör. UTC+4'te 10:02 → 06:02. Worker pg_cron ile her dakika
+            Kullanıcının kendi saatiyle seçtiği gönderim zamanı sağlayıcıya UTC (ENKYRYS saati) olarak iletilir; ör. UTC+4'te 10:02 → 06:02. Worker pg_cron ile her dakika
             <span className="font-mono"> POST /api/internal/worker</span> ucunu CRON_SECRET ile çağırır.
           </p>
         </Card>

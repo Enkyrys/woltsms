@@ -34,7 +34,8 @@ export async function GET() {
                   properties: {
                     recipients: { type: "array", items: { type: "string" }, maxItems: 5000 },
                     message: { type: "string", maxLength: 918 },
-                    schedule_at: { type: "string", format: "date-time", description: "İsteğe bağlı ileri tarih (ISO 8601, ör. 2026-11-05T14:30:00+03:00; saat dilimsiz değer Türkiye saati). Oluşturma saatinden sonra olmalı; o an gelince Sempico'ya gönderilir. Boşsa hemen gönderilir." },
+                    schedule_at: { type: "string", format: "date-time", description: "İsteğe bağlı ileri tarih (ISO 8601, ör. 2026-11-05T14:30:00+03:00; saat dilimsiz değer Türkiye saati). Oluşturma saatinden sonra olmalı; o an gelince ENKYRYS'e gönderilir. Boşsa hemen gönderilir." },
+                    name: { type: "string", maxLength: 120, description: "İsteğe bağlı kampanya adı (panelde görünür)." },
                     callback_url: { type: "string", format: "uri", description: "DLR bildirimi için (API anahtarına kaydedilir)" },
                   },
                   required: ["recipients", "message"],

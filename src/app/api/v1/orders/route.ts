@@ -32,14 +32,15 @@ export async function GET(req: Request) {
       message: "OK",
       data: (data ?? []).map((o) => ({
         id: o.id,
-        status: o.status,
+        name: o.name ?? null,
+        status: o.status, // draft|scheduled|pending|processing|completed|partial|failed|cancelled
         total_count: o.total_count,
         processed_count: o.processed_count,
         failed_count: o.failed_count,
         total_cost: o.total_cost,
         message: o.message,
         scheduled_at: o.scheduled_at,
-        provider_scheduled_at: o.provider_scheduled_at ?? null, // Sempico saati (UTC)
+        provider_scheduled_at: o.provider_scheduled_at ?? null, // ENKYRYS saati (UTC)
         provider_timezone: o.provider_timezone ?? "UTC",
         provider_triggered_at: o.provider_triggered_at ?? null,
         source: o.source,

@@ -1,11 +1,12 @@
 import { decrypt, timingSafeEqualStr } from "@/lib/security";
 import type { DlrItem, ProviderInterface, SendResult, BalanceResult, SendOptions } from "./types";
 import { PROVIDER_TZ, providerSchedule } from "@/lib/timezone";
+import { PROVIDER_DEFAULT_BASE_URL } from "@/config/provider";
 import { fetchWithRetry, mapProviderError } from "./types";
 
 // ============================================================
 // Gatum SMS — REST API v1 (9.20.0)
-// Base: https://restapi.sempico.solutions/v1
+// Base: PROVIDER_DEFAULT_BASE_URL (src/config/provider.ts) — sağlayıcının teknik adresi
 //
 // Kimlik doğrulama (OAuth 2.0 benzeri, 2 adım):
 //   POST /authorize     {username,password}      → {authorization_code, expires_at}
@@ -16,7 +17,7 @@ import { fetchWithRetry, mapProviderError } from "./types";
 //   paket alanları: number[], senderID, text, type, beginDate (YYYY-MM-DD),
 //   beginTime (HH:MM), lifetime, delivery, campaign, callback_url
 //   ÖNEMLİ: sağlayıcı İngiltere'dedir ve beginDate/beginTime'ı UTC saatiyle yorumlar
-//   (Sempico paneli saati UTC'dir). Kullanıcının seçtiği an burada UTC'ye çevrilerek
+//   (ENKYRYS paneli saati UTC'dir). Kullanıcının seçtiği an burada UTC'ye çevrilerek
 //   iletilir: UTC+4'te 10:02 → 06:02, Türkiye'de (UTC+3) 10:02 → 07:02.
 //   config.timezone ile değiştirilebilir (ör. "Europe/London").
 //   yanıt: {"status":true,"data":{"<phone>":[{"id_state":123}]}}
@@ -28,7 +29,7 @@ import { fetchWithRetry, mapProviderError } from "./types";
 // ============================================================
 
 export type GatumCredentials = {
-  username?: string; // Gatum/Sempico hesap girişi
+  username?: string; // Gatum/ENKYRYS hesap girişi
   password?: string;
   /** Doğrudan girilmiş access token (opsiyonel; yoksa username/password ile alınır) */
   accessToken?: string;
@@ -144,7 +145,7 @@ export class GatumProvider implements ProviderInterface {
     credentialsJson: string; // decrypt() edilmiş JSON
     config?: GatumConfig;
   }) {
-    this.baseUrl = (opts.baseUrl || "https://restapi.sempico.solutions/v1").replace(/\/+$/, "");
+    this.baseUrl = (opts.baseUrl || PROVIDER_DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.senderId = opts.senderId || "WOLTSMS";
     try {
       this.creds = JSON.parse(opts.credentialsJson || "{}") as GatumCredentials;
@@ -266,7 +267,7 @@ export class GatumProvider implements ProviderInterface {
 
   // ---------------- gönderim ----------------
 
-  /** Sağlayıcıya iletilecek planlı gönderim alanları (varsayılan UTC = Sempico saati). */
+  /** Sağlayıcıya iletilecek planlı gönderim alanları (varsayılan UTC = ENKYRYS saati). */
   scheduleFields(sendAt?: Date | string | null): { beginDate: string; beginTime: string } | Record<string, never> {
     if (this.config.sendSchedule === false) return {};
     const { beginDate, beginTime } = providerSchedule(sendAt ?? null, this.config.timezone || PROVIDER_TZ);
@@ -328,7 +329,27 @@ export class GatumProvider implements ProviderInterface {
     return error && ids.length === 0 ? { ids: [], error } : { ids };
   }
 
+  // Ham yanıtın yalnız bu numaraya ait kısmı (toplu yanıtta diğer numaralar kayda girmez), en fazla ~4 KB
+  private compactResponse(json: unknown, to: string): unknown {
+    const env = envelope(json);
+    let out: unknown = json;
+    if (env.data && typeof env.data === "object" && !Array.isArray(env.data)) {
+      out = { status: env.status, data: { [to]: this.pickEntry(env.data as Record<string, unknown>, to) ?? null } };
+    }
+    try {
+      const s = JSON.stringify(out);
+      if (s && s.length > 4000) return { truncated: true, text: s.slice(0, 4000) };
+    } catch {
+      return { text: String(out) };
+    }
+    return out ?? null;
+  }
+
   private parseSendResponse(res: ApiResponse, to: string): SendResult {
+    return { ...this.parseSendResponseInner(res, to), httpStatus: res.status, raw: this.compactResponse(res.json, to) };
+  }
+
+  private parseSendResponseInner(res: ApiResponse, to: string): SendResult {
     const { status, json } = res;
 
     if (status === 401) {
@@ -384,10 +405,11 @@ export class GatumProvider implements ProviderInterface {
 
     let res: ApiResponse;
     try {
-      // POST'ta fazladan deneme yinelenen gönderim üretir: tek deneme
-      res = await this.api(endpoint, { method: "POST", body: payload, token, retries: 1 });
+      // POST'ta fazladan deneme yinelenen gönderim üretir: HTTP katmanında TEK deneme.
+      // Geçici hatalar worker kuyruğunda (rpc_complete_send) üstel beklemeyle yeniden denenir.
+      res = await this.api(endpoint, { method: "POST", body: payload, token, retries: 0 }); // SMS POST tekrarlanmaz (çift gönderim riski); yeniden deneme DB kuyruğunda
     } catch (e) {
-      return { ok: false, errorCode: "PROVIDER_NETWORK", error: e instanceof Error ? e.message : "Ağ hatası", retryable: true };
+      return { ok: false, errorCode: "PROVIDER_NETWORK", error: e instanceof Error ? e.message : "Ağ hatası", retryable: true, raw: { error: e instanceof Error ? e.message : "network" } };
     }
 
     // token'ın süresi dolmuş/iptal edilmişse yenileyip bir kez daha dene
@@ -395,7 +417,7 @@ export class GatumProvider implements ProviderInterface {
       this.invalidateToken();
       try {
         token = await this.getAccessToken({ force: true });
-        res = await this.api(endpoint, { method: "POST", body: payload, token, retries: 1 });
+        res = await this.api(endpoint, { method: "POST", body: payload, token, retries: 0 }); // SMS POST tekrarlanmaz (çift gönderim riski); yeniden deneme DB kuyruğunda
       } catch (e) {
         return { ok: false, errorCode: "PROVIDER_AUTH", error: e instanceof Error ? e.message : "Token yenileme hatası", retryable: false };
       }
@@ -439,7 +461,7 @@ export class GatumProvider implements ProviderInterface {
 
     let res: ApiResponse;
     try {
-      res = await this.api(endpoint, { method: "POST", body: payload, token, retries: 1 });
+      res = await this.api(endpoint, { method: "POST", body: payload, token, retries: 0 }); // SMS POST tekrarlanmaz (çift gönderim riski); yeniden deneme DB kuyruğunda
     } catch (e) {
       const err = { ok: false, errorCode: "PROVIDER_NETWORK", error: e instanceof Error ? e.message : "Ağ hatası", retryable: true } as const;
       return slice.map(() => ({ ...err }));
@@ -449,7 +471,7 @@ export class GatumProvider implements ProviderInterface {
       this.invalidateToken();
       try {
         token = await this.getAccessToken({ force: true });
-        res = await this.api(endpoint, { method: "POST", body: payload, token, retries: 1 });
+        res = await this.api(endpoint, { method: "POST", body: payload, token, retries: 0 }); // SMS POST tekrarlanmaz (çift gönderim riski); yeniden deneme DB kuyruğunda
       } catch (e) {
         const err = { ok: false, errorCode: "PROVIDER_AUTH", error: e instanceof Error ? e.message : "Token yenileme hatası", retryable: false } as const;
         return slice.map(() => ({ ...err }));

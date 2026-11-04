@@ -95,6 +95,11 @@ export function StatusBadge({ status }: { status: string }) {
     failed: { t: "red", label: "Başarısız" },
     cancelled: { t: "gray", label: "İptal" },
     sent: { t: "teal", label: "Gönderildi" },
+    queued: { t: "gray", label: "Kuyrukta" },
+    sending: { t: "yellow", label: "Gönderiliyor" },
+    refunded: { t: "gray", label: "İade Edildi" },
+    partial: { t: "orange", label: "Kısmen Gönderildi" },
+    draft: { t: "gray", label: "Taslak" },
     delivered: { t: "green", label: "İletildi" },
     open: { t: "yellow", label: "Açık" },
     answered: { t: "green", label: "Yanıtlandı" },
@@ -103,6 +108,23 @@ export function StatusBadge({ status }: { status: string }) {
     revoked: { t: "red", label: "İptal" },
   };
   const v = map[status] || { t: "gray" as const, label: status };
+  return <Badge tone={v.t}>{v.label}</Badge>;
+}
+
+// SMS kampanyası (orders) durumları — panelin her yerinde aynı etiketler
+export const ORDER_STATUS_LABELS: Record<string, { t: "green" | "red" | "yellow" | "teal" | "gray" | "orange"; label: string }> = {
+  draft: { t: "gray", label: "Taslak" },
+  scheduled: { t: "teal", label: "Zamanlandı" },
+  pending: { t: "yellow", label: "Gönderim Bekliyor" },
+  processing: { t: "orange", label: "Gönderiliyor" },
+  completed: { t: "green", label: "Gönderildi" },
+  partial: { t: "orange", label: "Kısmen Gönderildi" },
+  failed: { t: "red", label: "Başarısız" },
+  cancelled: { t: "gray", label: "İptal Edildi" },
+};
+
+export function OrderStatusBadge({ status }: { status: string }) {
+  const v = ORDER_STATUS_LABELS[status] || { t: "gray" as const, label: status };
   return <Badge tone={v.t}>{v.label}</Badge>;
 }
 

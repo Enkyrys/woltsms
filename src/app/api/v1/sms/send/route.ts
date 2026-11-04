@@ -11,6 +11,7 @@ const SendSchema = z.object({
   recipients: z.array(z.string()).min(1).max(5000),
   message: z.string().min(1).max(918),
   schedule_at: z.string().optional(),
+  name: z.string().max(120).optional(), // kampanya adı (isteğe bağlı)
   callback_url: z.string().url().optional(),
 });
 
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
       req
     );
   }
-  const { recipients, message, schedule_at, callback_url } = parsed.data;
+  const { recipients, message, schedule_at, callback_url, name } = parsed.data;
 
   const { createOrder } = await import("@/lib/services");
   const idemKey = req.headers.get("idempotency-key") || req.headers.get("x-idempotency-key");
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
     userId: auth.userId,
     recipients,
     message,
-    scheduleAt: schedule_at ?? null, // boş: hemen; dolu: o an gelince Sempico'ya gönderilir
+    scheduleAt: schedule_at ?? null, // boş: hemen; dolu: o an gelince ENKYRYS'e gönderilir
     source: "api",
     idempotencyKey: idemKey,
     viaServiceRole: true, // çerez yok; RPC service_role + p_user_id ile çağrılır
@@ -89,7 +90,15 @@ export async function POST(req: Request) {
     );
   }
 
-  // sipariş kaydedildi → zamanı gelmişse hemen Sempico API ile gönder (ileri tarihliler beklemede kalır)
+  if (name?.trim()) {
+    try {
+      await createAdminClient().from("orders").update({ name: name.trim() }).eq("id", result.orderId).eq("user_id", auth.userId);
+    } catch {
+      // ad kaydı başarısız olsa da gönderim devam eder
+    }
+  }
+
+  // kampanya kaydedildi → zamanı gelmişse hemen ENKYRYS API ile gönder (ileri tarihliler beklemede kalır)
   after(async () => {
     const { sendOrderNow } = await import("@/lib/services");
     await sendOrderNow(250);

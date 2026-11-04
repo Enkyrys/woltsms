@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { PageTitle, Card, Badge } from "@/components/ui";
+import { PageTitle, Card, OrderStatusBadge } from "@/components/ui";
 // Sunucu (rpc_create_order) ile aynı segment kuralları
 import { calcSegments, parseRecipients, validateAndNormalizeList } from "@/lib/sms-segments";
 
@@ -13,14 +13,21 @@ export default function DashboardPage() {
   const [message, setMessage] = useState("");
   const [balance, setBalance] = useState("0");
   const [unitPrice, setUnitPrice] = useState("0");
-  const [recent, setRecent] = useState<{ id: string; status: string; totalCount: number; processedCount: number; createdAt: string }[]>([]);
+  const [recent, setRecent] = useState<{ id: string; name: string | null; status: string; totalCount: number; processedCount: number; createdAt: string }[]>([]);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState("");
   const [showShort, setShowShort] = useState(false);
   const [shortUrl, setShortUrl] = useState("");
   const [shortBiz, setShortBiz] = useState("");
   const [fileName, setFileName] = useState("");
-  // ileri tarihli gönderim (isteğe bağlı) — datetime-local, kullanıcının kendi saati
+  // kampanya: ad, gönderim türü (Hemen / İleri Tarihte), taslak
+  const [campaignName, setCampaignName] = useState("");
+  const [sendType, setSendType] = useState<"now" | "later">("now");
+  const [draftId, setDraftId] = useState<string | null>(null);
+  // kampanya bazlı tekrar koruması: form başına tek anahtar (çift tıklama / ağ tekrarı aynı kampanyayı döndürür)
+  const newKey = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `k-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const [idemKey, setIdemKey] = useState(newKey);
+  // ileri tarihli gönderim — datetime-local, kullanıcının kendi saati
   const [scheduledAt, setScheduledAt] = useState("");
   const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNowTick(Date.now()), 30_000); return () => clearInterval(t); }, []);
@@ -31,6 +38,21 @@ export default function DashboardPage() {
     fetch("/api/panel/transactions?action=balance").then(async (r) => { if (r.ok) { const j = await r.json(); setBalance(j.data.balance); } });
     fetch("/api/panel/balance").then(async (r) => { if (r.ok) { const j = await r.json(); setBalance(j.data.balance); setUnitPrice(j.data.unitPrice); } });
     fetch("/api/panel/orders?perPage=5").then(async (r) => { if (r.ok) { const j = await r.json(); setRecent(j.data); } });
+    // ?draft=<id> → taslağı forma yükle
+    const d = new URLSearchParams(window.location.search).get("draft");
+    if (d) {
+      fetch(`/api/panel/orders?id=${encodeURIComponent(d)}`).then(async (r) => {
+        if (!r.ok) return;
+        const j = await r.json();
+        const o = j.data?.order;
+        if (!o || o.status !== "draft") return;
+        const p = (o.draftPayload || {}) as { numbers?: string; contactListId?: string | null; scheduleAt?: string | null };
+        setDraftId(o.id); setCampaignName(o.name || ""); setMessage(o.message || "");
+        setNumbers(p.numbers || ""); setListId(p.contactListId || "");
+        if (p.scheduleAt && Date.parse(p.scheduleAt) > Date.now()) { setSendType("later"); setScheduledAt(toLocalInput(Date.parse(p.scheduleAt))); }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const c = calcSegments(message);
@@ -73,23 +95,40 @@ export default function DashboardPage() {
   const scheduleIso = Number.isFinite(scheduleMs) ? new Date(scheduleMs).toISOString() : undefined;
   const fmtTz = (ms: number, tz?: string) => new Date(ms).toLocaleString("tr-TR", { ...(tz ? { timeZone: tz } : {}), day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-  const submit = async () => {
+  const later = sendType === "later";
+
+  const submit = async (mode: "send" | "draft" = "send") => {
+    if (sending) return;
     if (!message.trim()) { alert("Mesaj yazın."); return; }
-    if (scheduledAt) {
-      if (!scheduleIso) { alert("Geçersiz gönderim tarihi."); return; }
+    if (mode === "send" && later) {
+      if (!scheduledAt || !scheduleIso) { alert("İleri tarihte gönderim için tarih ve saat seçin."); return; }
       if (scheduleMs <= Date.now()) { alert("İleri tarihli gönderim zamanı şu andan (oluşturma saatinden) sonra olmalıdır."); return; }
     }
     setSending(true); setResult("");
     const r = await fetch("/api/panel/orders", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Idempotency-Key": "order-" + Date.now() },
-      body: JSON.stringify({ message, numbers, contactListId: listId || undefined, scheduleAt: scheduleIso }),
+      headers: { "Content-Type": "application/json", ...(mode === "send" ? { "Idempotency-Key": idemKey } : {}) },
+      body: JSON.stringify({
+        mode,
+        draftId: draftId || undefined,
+        name: campaignName.trim() || undefined,
+        message, numbers, contactListId: listId || undefined,
+        scheduleAt: later ? scheduleIso : undefined,
+      }),
     });
-    const j = await r.json();
+    const j = await r.json().catch(() => ({ success: false, message: "Sunucu yanıtı okunamadı." }));
     setSending(false);
-    setResult(j.success ? `✓ ${j.message} (Sipariş #${j.data.orderId}, ${j.data.totalCount} numara, ${j.data.segments} segment, ₺${j.data.totalCost})` : `✗ ${j.message}`);
+    if (mode === "draft") {
+      setResult(j.success ? `✓ ${j.message} (Taslak #${j.data.orderId})` : `✗ ${j.message}`);
+      if (j.success) setDraftId(j.data.orderId);
+      return;
+    }
+    setResult(j.success
+      ? `✓ ${j.message} (Kampanya #${j.data.orderId}, ${j.data.totalCount} numara, ${j.data.segments} segment, ₺${j.data.totalCost}${j.data.status === "scheduled" && scheduleIso ? ` · ${fmtTz(Date.parse(scheduleIso))}` : ""})`
+      : `✗ ${j.message}`);
     if (j.success) {
-      setMessage(""); setNumbers(""); setListId(""); setScheduledAt("");
+      setMessage(""); setNumbers(""); setListId(""); setScheduledAt(""); setCampaignName(""); setSendType("now"); setDraftId(null); setIdemKey(newKey());
+      if (draftId) window.history.replaceState(null, "", "/panel/dashboard");
       fetch("/api/panel/balance").then(async (r2) => { if (r2.ok) { const jj = await r2.json(); setBalance(jj.data.balance); } });
       fetch("/api/panel/orders?perPage=5").then(async (r2) => { if (r2.ok) { const jj = await r2.json(); setRecent(jj.data); } });
     }
@@ -110,15 +149,20 @@ export default function DashboardPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <a href="/panel/siparisler" className="text-[#0FB5A0] font-semibold text-[14px]">← Tüm Siparişler</a>
-        <button onClick={submit} disabled={sending} className="btn-primary text-[13px] px-5 py-2.5 disabled:opacity-50">📄 {sending ? "Gönderiliyor..." : "Oluştur"}</button>
+        <a href="/panel/siparisler" className="text-[#0FB5A0] font-semibold text-[14px]">← Tüm Kampanyalar</a>
+        <div className="flex gap-2">
+          <button onClick={() => submit("draft")} disabled={sending} className="btn-outline text-[13px] px-4 py-2.5 disabled:opacity-50">💾 Taslak Kaydet</button>
+          <button onClick={() => submit("send")} disabled={sending} className="btn-primary text-[13px] px-5 py-2.5 disabled:opacity-50">
+            {sending ? "Kaydediliyor..." : later ? "🕒 Zamanla" : "📤 Hemen Gönder"}
+          </button>
+        </div>
       </div>
-      <PageTitle>Yeni Sipariş</PageTitle>
+      <PageTitle>{draftId ? "Taslak Kampanya" : "Yeni Kampanya"}</PageTitle>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card className="!p-4"><div className="text-[12px] text-slate-500 font-semibold">KALAN KREDİ</div><div className="text-2xl font-extrabold text-[#0A8F7E]">₺ {Number(balance).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</div>{Number(unitPrice) > 0 && <div className="text-[13px] font-bold text-slate-700 mt-0.5">≈ {Math.max(0, Math.floor(Number(balance) / Number(unitPrice) + 1e-9)).toLocaleString("tr-TR")} SMS</div>}<a href="/panel/kredi-yukle" className="text-[12px] text-[#0FB5A0] font-semibold">+ Kredi Yükle</a></Card>
         <Card className="!p-4"><div className="text-[12px] text-slate-500 font-semibold">ALICI / SEGMENT</div><div className="text-2xl font-extrabold">{numCount} <span className="text-sm text-slate-400">numara</span> · {seg.seg} <span className="text-sm text-slate-400">segment ({seg.enc})</span></div><div className="text-[12px] text-slate-500">Tahmini tutar: <b>₺{Number(estCost).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</b>{unit > 0 && seg.seg > 0 && <span className="text-slate-400"> ({numCount} × {seg.seg} segment × ₺{unit.toLocaleString("tr-TR", { maximumFractionDigits: 4 })})</span>}</div></Card>
-        <Card className="!p-4"><div className="text-[12px] text-slate-500 font-semibold">SON SİPARİŞLER</div>{recent.length === 0 ? <div className="text-sm text-slate-400 mt-1">Sipariş bulunamadı.</div> : recent.slice(0, 3).map((o) => (<div key={o.id} className="flex justify-between text-[13px] py-1 border-b last:border-0"><span>#{o.id} · {o.totalCount} adet</span><span className="text-slate-500">{o.status}</span></div>))}</Card>
+        <Card className="!p-4"><div className="text-[12px] text-slate-500 font-semibold">SON KAMPANYALAR</div>{recent.length === 0 ? <div className="text-sm text-slate-400 mt-1">Kampanya bulunamadı.</div> : recent.slice(0, 3).map((o) => (<div key={o.id} className="flex justify-between items-center gap-2 text-[13px] py-1 border-b last:border-0"><span className="truncate">{o.name || `#${o.id.slice(0, 8)}`} · {o.totalCount} adet</span><OrderStatusBadge status={o.status} /></div>))}</Card>
       </div>
 
       {result && <div className={`mb-4 text-[14px] p-3 rounded-lg ${result.startsWith("✓") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{result}</div>}
@@ -148,19 +192,32 @@ export default function DashboardPage() {
         </div>
 
         <div>
-          <label className="label">Gönderileceği tarih (isteğe bağlı · ileri tarihli sipariş)</label>
-          <div className="flex gap-2 mb-1">
-            <input type="datetime-local" min={minSchedule} value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="input" />
-            {scheduledAt && <button type="button" className="btn-outline px-3 text-[12px] whitespace-nowrap" onClick={() => setScheduledAt("")}>Temizle</button>}
+          <label className="label">Kampanya adı</label>
+          <input value={campaignName} onChange={(e) => setCampaignName(e.target.value)} maxLength={120} className="input mb-5" placeholder="Örn. Kasım indirimi" />
+
+          <label className="label">Gönderim Zamanı</label>
+          <div className="grid grid-cols-2 gap-2 mb-2" role="radiogroup" aria-label="Gönderim zamanı">
+            {([["now", "📤 Hemen Gönder", "Kaydedildiği anda gönderilir"], ["later", "🕒 İleri Tarihte Gönder", "Seçilen tarih ve saatte"]] as const).map(([v, label, hint]) => (
+              <button key={v} type="button" role="radio" aria-checked={sendType === v} onClick={() => setSendType(v)}
+                className={`text-left rounded-lg border px-3 py-2.5 transition ${sendType === v ? "border-[#0FB5A0] bg-[#E6FAF7] ring-1 ring-[#0FB5A0]" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-[#0FB5A0]/50"}`}>
+                <div className="text-[13px] font-bold">{label}</div>
+                <div className="text-[11px] text-slate-500">{hint}</div>
+              </button>
+            ))}
           </div>
-          <p className={`text-[11px] mb-5 ${scheduledAt && scheduleMs <= nowTick ? "text-red-600" : "text-slate-500"}`}>
-            {!scheduledAt
-              ? "Boş bırakılırsa sipariş kaydedildiği anda Sempico'ya gönderilir."
-              : !Number.isFinite(scheduleMs)
-                ? "Geçersiz tarih."
-                : scheduleMs <= nowTick
-                  ? "Seçilen zaman geçmişte; oluşturma saatinden sonraki bir zaman seçin."
-                  : `Zamanlı: ${fmtTz(scheduleMs)} (sizin saatiniz) → Sempico'ya ${fmtTz(scheduleMs, "UTC")} UTC'de gönderilir.`}
+          {later && (
+            <input type="datetime-local" min={minSchedule} value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="input mb-1" aria-label="Gönderim tarihi ve saati" />
+          )}
+          <p className={`text-[11px] mb-5 ${later && scheduledAt && scheduleMs <= nowTick ? "text-red-600" : "text-slate-500"}`}>
+            {!later
+              ? "Kampanya kaydedildiği anda ENKYRYS'e gönderilir."
+              : !scheduledAt
+                ? "Tarih ve saat seçin. Panel kapalı olsa da kampanya o an sunucudan otomatik gönderilir."
+                : !Number.isFinite(scheduleMs)
+                  ? "Geçersiz tarih."
+                  : scheduleMs <= nowTick
+                    ? "Seçilen zaman geçmişte; oluşturma saatinden sonraki bir zaman seçin."
+                    : `Zamanlandı: ${fmtTz(scheduleMs)} (sizin saatiniz) → ENKYRYS'e ${fmtTz(scheduleMs, "UTC")} UTC'de gönderilir.`}
           </p>
 
           <label className="label">Geçmiş mesajlar</label>

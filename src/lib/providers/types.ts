@@ -1,5 +1,5 @@
 // WOLTSMS - Provider Adapter deseni (lib/providers/)
-// İlk adapter: Gatum SMS (sempico.solutions). Ek olarak MockProvider (test)
+// İlk adapter: ENKYRYS SMS (Gatum REST API). Ek olarak MockProvider (test)
 // ve Generic HTTP (herhangi bir JSON API). Yeni sağlayıcı = yeni adapter +
 // provider_settings tablosuna kayıt; paneldeki "Entegrasyonlar" sekmesinden
 // kimlik bilgileri girilir (AES-256-GCM ile şifreli saklanır).
@@ -10,7 +10,9 @@ export type SendResult = {
   providerMessageIds?: string[]; // çok parçalı (multipart)
   errorCode?: string; // normalize edilmiş kod
   error?: string; // insan-okur sağlayıcı hatası
-  retryable?: boolean; // true ise worker yeniden dener
+  retryable?: boolean; // true ise worker yeniden dener; false → kalıcı hata, tekrar denenmez
+  httpStatus?: number; // sağlayıcı HTTP yanıt kodu
+  raw?: unknown; // sağlayıcının bu mesaj için ham yanıtı (kayıt/denetim için, kısaltılmış)
 };
 
 export type DlrItem = {

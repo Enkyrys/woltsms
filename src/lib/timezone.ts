@@ -3,8 +3,8 @@
 // Panel: kullanıcı tarih/saati KENDİ saatiyle girer; tarayıcı bunu saat dilimli
 // UTC ISO'ya çevirip gönderir (ör. UTC+4'te 10:02 → 06:02Z).
 // API: saat dilimi verilmeyen değerler Türkiye saati (Europe/Istanbul) kabul edilir.
-// Sağlayıcı (Gatum/Sempico, İngiltere) beginDate/beginTime'ı UTC saatiyle yorumlar
-// (Sempico paneli saati = UTC). Bu yüzden sağlayıcıya UTC tarih/saat iletilir;
+// Sağlayıcı (Gatum/ENKYRYS, İngiltere) beginDate/beginTime'ı UTC saatiyle yorumlar
+// (ENKYRYS paneli saati = UTC). Bu yüzden sağlayıcıya UTC tarih/saat iletilir;
 // gerekirse sağlayıcı config.timezone ile (ör. "Europe/London") değiştirilebilir.
 
 export const TURKEY_TZ = "Europe/Istanbul";
@@ -78,7 +78,7 @@ export function formatInZone(at: Date, timeZone: string): { date: string; time: 
 }
 
 /**
- * Sağlayıcıya iletilecek planlı gönderim tarihi/saati (varsayılan UTC = Sempico saati).
+ * Sağlayıcıya iletilecek planlı gönderim tarihi/saati (varsayılan UTC = ENKYRYS saati).
  * Geçmiş bir zaman (ör. yeniden denemeler) sağlayıcıya gönderilmez; en erken "şimdi" kullanılır.
  */
 export function providerSchedule(

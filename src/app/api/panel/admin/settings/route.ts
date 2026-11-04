@@ -1,3 +1,4 @@
+import { PROVIDER_DEFAULT_BASE_URL } from "@/config/provider";
 import { normalizeHourSetting } from "@/lib/sms-segments";
 import { z } from "zod";
 import { getSession, hasPermissionSync } from "@/lib/auth";
@@ -99,12 +100,16 @@ export async function GET(req: Request) {
 
   if (scope === "health") {
     if (!s.isAdmin && !hasPermissionSync(s, "settings.view")) return forbidden();
-    const [{ error: dbErr }, { count: pendingTopups }, { count: queuedMsgs }, { data: provider }] = await Promise.all([
+    const [{ error: dbErr }, { count: pendingTopups }, { count: queuedMsgs }, { data: provider }, { count: scheduledCampaigns }, { data: lastRun }] = await Promise.all([
       admin.from("system_settings").select("key", { head: true, count: "exact" }),
       admin.from("topup_requests").select("id", { head: true, count: "exact" }).eq("status", "pending"),
       admin.from("sms_messages").select("id", { head: true, count: "exact" }).eq("status", "queued"),
       admin.from("provider_settings").select("provider, is_active, balance, balance_currency, last_balance_at, last_error").eq("is_active", true).order("updated_at", { ascending: false }).limit(1).then((r) => ({ data: r.data?.[0] ?? null })),
+      admin.from("orders").select("id", { head: true, count: "exact" }).eq("status", "scheduled"),
+      admin.from("system_settings").select("value").eq("key", "worker_last_run_at").maybeSingle(),
     ]);
+    const lastRunAt = lastRun?.value ?? null;
+    const lastRunAgoSec = lastRunAt ? Math.round((Date.now() - Date.parse(lastRunAt)) / 1000) : null;
     return ok({
       status: dbErr ? "degraded" : "ok",
       db: dbErr ? dbErr.message : "ok",
@@ -118,6 +123,10 @@ export async function GET(req: Request) {
       providerLastError: provider?.last_error ?? null,
       workerUrl: process.env.APP_URL ? `${process.env.APP_URL}/api/internal/worker` : "",
       cronConfigured: Boolean(process.env.CRON_SECRET),
+      scheduledCampaigns: scheduledCampaigns ?? 0,
+      workerLastRunAt: lastRunAt,
+      // dakikalık zamanlayıcı 3 dakikadan uzun süredir çalışmadıysa zamanlanmış gönderimler gecikir
+      schedulerStatus: lastRunAgoSec === null ? "hiç çalışmadı" : lastRunAgoSec <= 180 ? "çalışıyor" : `durmuş olabilir (${Math.round(lastRunAgoSec / 60)} dk önce)`,
     });
   }
 
@@ -275,7 +284,7 @@ export async function POST(req: Request) {
     let saved: Record<string, string> = {};
     try { saved = row?.credentials_encrypted ? JSON.parse(decrypt(row.credentials_encrypted)) : {}; } catch { saved = {}; }
     const creds = { ...saved, ...Object.fromEntries(Object.entries(typed).filter(([, v]) => String(v).trim() !== "")) };
-    const baseUrl = String(body.baseUrl || row?.base_url || "https://restapi.sempico.solutions/v1");
+    const baseUrl = String(body.baseUrl || row?.base_url || PROVIDER_DEFAULT_BASE_URL);
     const senderId = String(body.senderId || row?.sender_id || "WOLTSMS");
 
     let result: { ok: boolean; level: string; message: string; latencyMs?: number; httpStatus?: number; providerMessageId?: string };
