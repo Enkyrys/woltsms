@@ -243,7 +243,7 @@ export async function processSendBatch(limit = 250): Promise<{ claimed: number; 
       ? `${process.env.APP_URL || ""}/api/v1/webhooks/dlr/${provider.name}?u=${m.user_id}`
       : undefined;
     // Planlanan gönderim anı sağlayıcıya iletilir; adapter bunu sağlayıcının saat
-    // dilimine (Gatum: Europe/London) çevirir. Geçmiş bir an ise "şimdi" kullanılır.
+    // dilimine (Gatum: UTC) çevirir. Geçmiş bir an ise "şimdi" kullanılır.
     const res = await provider.sendSms(m.recipient, m.body, { callbackUrl: cbFull, sendAt: m.next_attempt_at });
 
     const { data: completed, error: completeErr } = await admin.rpc("rpc_complete_send", {

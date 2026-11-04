@@ -229,7 +229,7 @@ export default function AdminOrderAlert() {
                   <a key={o.id} href="/panel/siparisler" onClick={dismiss} className="block px-4 py-2.5 border-b text-[13px] hover:bg-slate-50 dark:hover:bg-slate-800">
                     <div className="font-semibold">{o.dealer || "Bayi"} · {o.totalCount.toLocaleString("tr-TR")} alıcı</div>
                     <div className="text-slate-500 text-[12px]">
-                      {new Date(o.createdAt).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })} · {o.source === "api" ? "API" : "Panel"}
+                      {new Date(o.createdAt).toLocaleString("tr-TR")} · {o.source === "api" ? "API" : "Panel"}
                     </div>
                   </a>
                 ))}

@@ -62,13 +62,29 @@ export default function DashboardPage() {
     }
   };
 
+  // datetime-local değeri ("2026-11-05T10:02") kullanıcının KENDİ saatidir.
+  // Tarayıcı bunu kendi saat dilimine göre yorumlar; sunucuya saat dilimli (UTC ISO) gönderilir.
+  // Böylece sunucu/sağlayıcı saati farklı olsa da SMS kullanıcının seçtiği anda gider.
+  const scheduleIso = (() => {
+    if (!scheduledAt) return undefined;
+    const d = new Date(scheduledAt);
+    return Number.isFinite(d.getTime()) ? d.toISOString() : undefined;
+  })();
+  const providerTimeHint = (() => {
+    if (!scheduleIso) return "";
+    const d = new Date(scheduleIso);
+    const f = (tz: string) => d.toLocaleString("tr-TR", { timeZone: tz, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    return `Seçilen: ${f(Intl.DateTimeFormat().resolvedOptions().timeZone)} (sizin saatiniz) → sağlayıcıya iletilecek: ${f("UTC")} (UTC)`;
+  })();
+
   const submit = async () => {
     if (!message.trim()) { alert("Mesaj yazın."); return; }
+    if (scheduledAt && !scheduleIso) { alert("Geçersiz gönderim tarihi."); return; }
     setSending(true); setResult("");
     const r = await fetch("/api/panel/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Idempotency-Key": "order-" + Date.now() },
-      body: JSON.stringify({ message, numbers, contactListId: listId || undefined, scheduleAt: scheduledAt || undefined }),
+      body: JSON.stringify({ message, numbers, contactListId: listId || undefined, scheduleAt: scheduleIso }),
     });
     const j = await r.json();
     setSending(false);
@@ -133,8 +149,9 @@ export default function DashboardPage() {
         </div>
 
         <div>
-          <label className="label">Gönderileceği tarihi (ileri tarihli sipariş · Türkiye saati)</label>
-          <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="input mb-5" placeholder="Gönderileceği Tarihi" />
+          <label className="label">Gönderileceği tarihi (ileri tarihli sipariş · kendi saatiniz)</label>
+          <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className={`input ${providerTimeHint ? "mb-1" : "mb-5"}`} placeholder="Gönderileceği Tarihi" />
+          {providerTimeHint && <p className="text-[11px] text-slate-500 mb-5">{providerTimeHint}</p>}
 
           <label className="label">Geçmiş mesajlar</label>
           <select onChange={(e) => { if (e.target.value) setMessage(history.find((h) => String(h.id) === e.target.value)?.body || ""); }} className="input mb-5" defaultValue="">

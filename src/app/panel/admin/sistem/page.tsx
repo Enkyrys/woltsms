@@ -411,7 +411,7 @@ export default function SistemPage() {
           <p className="text-[12px] text-slate-500 mt-3">
             Varsayılan çalışma saati 24 saattir: başlangıç 24:00, bitiş 23:59 (Türkiye saati). Başlangıç ve bitiş
             aynı (ya da 0/24) ise gönderim gün boyu açıktır; pencere dışında kalan gönderimler iptal edilir ve rezerv iade edilir.
-            Sağlayıcıya iletilen gönderim tarihi/saati otomatik olarak İngiltere saatine (Europe/London) çevrilir. Worker pg_cron ile her dakika
+            Kullanıcının kendi saatiyle seçtiği gönderim zamanı sağlayıcıya UTC (Sempico saati) olarak iletilir; ör. UTC+4'te 10:02 → 06:02. Worker pg_cron ile her dakika
             <span className="font-mono"> POST /api/internal/worker</span> ucunu CRON_SECRET ile çağırır.
           </p>
         </Card>

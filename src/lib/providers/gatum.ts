@@ -15,9 +15,10 @@ import { fetchWithRetry, mapProviderError } from "./types";
 // Gönderim:  POST /send  → gövde JSON DİZİSİ (istek başına en fazla 100 SMS)
 //   paket alanları: number[], senderID, text, type, beginDate (YYYY-MM-DD),
 //   beginTime (HH:MM), lifetime, delivery, campaign, callback_url
-//   ÖNEMLİ: sağlayıcı İngiltere'dedir; beginDate/beginTime İngiltere saatiyle
-//   (Europe/London, GMT/BST) yorumlanır. Türkiye saatiyle girilen gönderim anı
-//   burada Europe/London'a çevrilerek iletilir (config.timezone ile değiştirilebilir).
+//   ÖNEMLİ: sağlayıcı İngiltere'dedir ve beginDate/beginTime'ı UTC saatiyle yorumlar
+//   (Sempico paneli saati UTC'dir). Kullanıcının seçtiği an burada UTC'ye çevrilerek
+//   iletilir: UTC+4'te 10:02 → 06:02, Türkiye'de (UTC+3) 10:02 → 07:02.
+//   config.timezone ile değiştirilebilir (ör. "Europe/London").
 //   yanıt: {"status":true,"data":{"<phone>":[{"id_state":123}]}}
 //   hata : {"status":false,"error_code":400,"errors":"..."}  (veya numara bazlı {"error":"..."})
 // Bakiye:    GET /me   → data.balance_units + data.currency  (IP başına 15 dk'da 1 istek!)
@@ -55,7 +56,7 @@ export type GatumConfig = {
   campaign?: string; // istatistik grubu (default WOLTSMS)
   type?: string; // sms | flashsms | wappush | vcard | hlr | mnp (default sms)
   lifetime?: number; // saniye, default 86400
-  timezone?: string; // sağlayıcının saat dilimi (beginDate/beginTime), default Europe/London
+  timezone?: string; // sağlayıcının saat dilimi (beginDate/beginTime), default UTC
   sendSchedule?: boolean; // false → beginDate/beginTime gönderilmez (default true)
   timeoutMs?: number;
   maxRetries?: number;
@@ -265,7 +266,7 @@ export class GatumProvider implements ProviderInterface {
 
   // ---------------- gönderim ----------------
 
-  /** Sağlayıcıya iletilecek planlı gönderim alanları (İngiltere saati). */
+  /** Sağlayıcıya iletilecek planlı gönderim alanları (varsayılan UTC = Sempico saati). */
   scheduleFields(sendAt?: Date | string | null): { beginDate: string; beginTime: string } | Record<string, never> {
     if (this.config.sendSchedule === false) return {};
     const { beginDate, beginTime } = providerSchedule(sendAt ?? null, this.config.timezone || PROVIDER_TZ);

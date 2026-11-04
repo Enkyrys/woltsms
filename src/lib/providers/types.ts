@@ -33,7 +33,7 @@ export interface ProviderInterface {
   name: string;
   /**
    * opts.sendAt: siparişin planlanan gönderim anı (UTC). Sağlayıcı adapter'ı bunu
-   * kendi saat dilimine çevirerek iletir (Gatum: Europe/London → beginDate/beginTime).
+   * kendi saat dilimine çevirerek iletir (Gatum: UTC → beginDate/beginTime).
    */
   sendSms(to: string, text: string, opts?: SendOptions): Promise<SendResult>;
   sendBulk(messages: { to: string; text: string; sendAt?: Date | string | null }[]): Promise<SendResult[]>;
