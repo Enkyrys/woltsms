@@ -29,7 +29,7 @@ def send_sms(recipients: list[str], message: str, schedule_at: str | None = None
         json={
             "recipients": recipients,
             "message": message,
-            "schedule_at": schedule_at,  # yok sayılır: sipariş kaydedildiği anda gönderilir
+            "schedule_at": schedule_at,  # isteğe bağlı ileri tarih (ISO 8601); boşsa hemen gönderilir
         },
         timeout=30,
     )

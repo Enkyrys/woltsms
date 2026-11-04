@@ -20,6 +20,10 @@ export default function DashboardPage() {
   const [shortUrl, setShortUrl] = useState("");
   const [shortBiz, setShortBiz] = useState("");
   const [fileName, setFileName] = useState("");
+  // ileri tarihli gönderim (isteğe bağlı) — datetime-local, kullanıcının kendi saati
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNowTick(Date.now()), 30_000); return () => clearInterval(t); }, []);
 
   useEffect(() => {
     fetch("/api/panel/contacts?perPage=100").then(async (r) => { if (r.ok) { const j = await r.json(); setLists(j.data); } });
@@ -61,19 +65,31 @@ export default function DashboardPage() {
     }
   };
 
+  // datetime-local "2026-11-05T10:02" → tarayıcının saat dilimiyle yorumlanıp UTC ISO gönderilir
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const toLocalInput = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+  const minSchedule = toLocalInput(nowTick + 60_000);
+  const scheduleMs = scheduledAt ? new Date(scheduledAt).getTime() : NaN;
+  const scheduleIso = Number.isFinite(scheduleMs) ? new Date(scheduleMs).toISOString() : undefined;
+  const fmtTz = (ms: number, tz?: string) => new Date(ms).toLocaleString("tr-TR", { ...(tz ? { timeZone: tz } : {}), day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
   const submit = async () => {
     if (!message.trim()) { alert("Mesaj yazın."); return; }
+    if (scheduledAt) {
+      if (!scheduleIso) { alert("Geçersiz gönderim tarihi."); return; }
+      if (scheduleMs <= Date.now()) { alert("İleri tarihli gönderim zamanı şu andan (oluşturma saatinden) sonra olmalıdır."); return; }
+    }
     setSending(true); setResult("");
     const r = await fetch("/api/panel/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Idempotency-Key": "order-" + Date.now() },
-      body: JSON.stringify({ message, numbers, contactListId: listId || undefined, }),
+      body: JSON.stringify({ message, numbers, contactListId: listId || undefined, scheduleAt: scheduleIso }),
     });
     const j = await r.json();
     setSending(false);
     setResult(j.success ? `✓ ${j.message} (Sipariş #${j.data.orderId}, ${j.data.totalCount} numara, ${j.data.segments} segment, ₺${j.data.totalCost})` : `✗ ${j.message}`);
     if (j.success) {
-      setMessage(""); setNumbers(""); setListId("");
+      setMessage(""); setNumbers(""); setListId(""); setScheduledAt("");
       fetch("/api/panel/balance").then(async (r2) => { if (r2.ok) { const jj = await r2.json(); setBalance(jj.data.balance); } });
       fetch("/api/panel/orders?perPage=5").then(async (r2) => { if (r2.ok) { const jj = await r2.json(); setRecent(jj.data); } });
     }
@@ -132,8 +148,19 @@ export default function DashboardPage() {
         </div>
 
         <div>
-          <p className="text-[12px] text-slate-500 mb-5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
-            Sipariş kaydedildiği anda gönderilir. Oluşturma saati Sempico'ya UTC olarak iletilir.
+          <label className="label">Gönderileceği tarih (isteğe bağlı · ileri tarihli sipariş)</label>
+          <div className="flex gap-2 mb-1">
+            <input type="datetime-local" min={minSchedule} value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="input" />
+            {scheduledAt && <button type="button" className="btn-outline px-3 text-[12px] whitespace-nowrap" onClick={() => setScheduledAt("")}>Temizle</button>}
+          </div>
+          <p className={`text-[11px] mb-5 ${scheduledAt && scheduleMs <= nowTick ? "text-red-600" : "text-slate-500"}`}>
+            {!scheduledAt
+              ? "Boş bırakılırsa sipariş kaydedildiği anda Sempico'ya gönderilir."
+              : !Number.isFinite(scheduleMs)
+                ? "Geçersiz tarih."
+                : scheduleMs <= nowTick
+                  ? "Seçilen zaman geçmişte; oluşturma saatinden sonraki bir zaman seçin."
+                  : `Zamanlı: ${fmtTz(scheduleMs)} (sizin saatiniz) → Sempico'ya ${fmtTz(scheduleMs, "UTC")} UTC'de gönderilir.`}
           </p>
 
           <label className="label">Geçmiş mesajlar</label>

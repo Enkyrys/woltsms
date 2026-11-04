@@ -22,7 +22,7 @@ export async function sendSms(recipients, message, opts = {}) {
     body: JSON.stringify({
       recipients,
       message,
-      schedule_at: opts.scheduleAt, // yok sayılır: sipariş kaydedildiği anda gönderilir
+      schedule_at: opts.scheduleAt, // isteğe bağlı ileri tarih (ISO 8601); boşsa hemen gönderilir
     }),
   });
 

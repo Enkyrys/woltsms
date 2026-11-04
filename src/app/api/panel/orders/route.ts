@@ -190,7 +190,7 @@ export async function POST(req: Request) {
     return Response.json({ success: false, code: result.code, message: result.error }, { status: result.code });
   }
 
-  // sipariş veritabanına kaydedildi → hemen Sempico API ile gönder
+  // sipariş kaydedildi → zamanı gelmişse hemen Sempico API ile gönder (ileri tarihliler beklemede kalır)
   // (RPC durum olarak "ok" döndürür; önceki "pending" kontrolü hiç tutmuyordu)
   after(() => sendOrderNow(250));
 

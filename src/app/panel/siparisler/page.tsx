@@ -76,16 +76,17 @@ export default function SiparislerPage() {
       <div className="card !p-0 overflow-hidden">
         <table className="w-full table-head">
           <thead><tr className="text-left border-b">
-            <th>ID</th><th>Durum ↕ ⧩</th><th>İşlenen ↕ ⧩</th><th>Oluşturan</th><th title="Siparişin Sempico'ya iletilen oluşturma saati (UTC)">Sağlayıcı Saati (Sempico UTC)</th><th className="sorted-col">Oluşturulma Tarihi ⤓ ⧩</th>{isAdmin && <th>İşlem</th>}
+            <th>ID</th><th>Durum ↕ ⧩</th><th>İşlenen ↕ ⧩</th><th>Oluşturan</th><th>Gönderileceği Tarihi</th><th title="Sempico'ya gönderim saati (UTC)">Sağlayıcı Saati (Sempico UTC)</th><th className="sorted-col">Oluşturulma Tarihi ⤓ ⧩</th>{isAdmin && <th>İşlem</th>}
           </tr></thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={isAdmin ? 7 : 6}><Empty text="Sipariş bulunamadı." /></td></tr>}
+            {rows.length === 0 && <tr><td colSpan={isAdmin ? 8 : 7}><Empty text="Sipariş bulunamadı." /></td></tr>}
             {rows.map((r) => (
               <tr key={r.id} className="table-row cursor-pointer" onClick={() => open(r.id)}>
                 <td className="font-bold text-[#0FB5A0]">#{r.id}</td>
                 <td><StatusBadge status={r.status} /></td>
                 <td>{r.processedCount}/{r.totalCount}</td>
                 <td>{r.username}</td>
+                <td>{fmtLocal(r.scheduledAt)}</td>
                 <td>
                   <span className="font-mono text-[12px]">{fmtProviderTime(r.providerScheduledAt, r.providerTimezone)}</span>
                   {r.providerTriggeredAt && <div className="text-[11px] text-[#0A8F7E]">✓ Sempico'ya gönderildi</div>}
@@ -107,9 +108,10 @@ export default function SiparislerPage() {
         <Modal title={`Sipariş #${detail.order.id}`} wide onClose={() => setDetail(null)}>
           <div className="text-sm space-y-1 mb-3">
             <div><b>Durum:</b> <StatusBadge status={String(detail.order.status)} /> · {String(detail.order.processedCount)}/{String(detail.order.totalCount)}</div>
-            <div><b>Oluşturma (gönderici) saati:</b> {fmtLocal(detail.order.createdAt)} <span className="text-slate-400">(sizin saatiniz)</span></div>
+            <div><b>Oluşturma saati:</b> {fmtLocal(detail.order.createdAt)} <span className="text-slate-400">(sizin saatiniz)</span></div>
+            <div><b>Gönderileceği tarih:</b> {fmtLocal(detail.order.scheduledAt)} <span className="text-slate-400">(sizin saatiniz)</span></div>
             <div><b>Sağlayıcı saati (Sempico):</b> <span className="font-mono">{fmtProviderTime(detail.order.providerScheduledAt, detail.order.providerTimezone)}</span></div>
-            <div><b>Sempico'ya gönderim:</b> {detail.order.providerTriggeredAt ? fmtLocal(detail.order.providerTriggeredAt) : "Gönderiliyor…"}</div>
+            <div><b>Sempico'ya gönderim:</b> {detail.order.providerTriggeredAt ? fmtLocal(detail.order.providerTriggeredAt) : (detail.order.status === "scheduled" ? "Zamanı bekleniyor (Sempico saati gelince gönderilir)" : "Gönderiliyor…")}</div>
             <div><b>Mesaj:</b> {String(detail.order.message)}</div>
             {detail.order.note ? <div><b>Not:</b> {String(detail.order.note)}</div> : null}
           </div>

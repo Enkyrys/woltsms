@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveProvider, hasActiveProvider } from "@/lib/providers";
 import type { Json } from "@/db/types";
+import { parseTurkeyDateTime } from "@/lib/timezone";
 
 // WOLTSMS - servis katmanı: tüm bakiye işlemleri SQL RPC'lerinde.
 // Bu dosyalık yalnızca çağırıcı + worker orkestrasyonu.
@@ -80,16 +81,30 @@ export async function createOrder(opts: {
     }
   | { ok: false; error: string; code: number }
 > {
-  // İleri tarihli sipariş YOK: gönderilecek tarih (scheduleAt) dikkate alınmaz.
-  // Sipariş veritabanına kaydedildiği an (created_at) gönderim anıdır; sağlayıcıya
-  // bu an UTC'ye çevrilerek API ile hemen iletilir (bkz. sendOrderNow).
+  // Gönderim zamanı:
+  //  - scheduleAt boş  → sipariş kaydedildiği anda Sempico'ya gönderilir.
+  //  - scheduleAt dolu → oluşturma saatinden SONRAKİ bir an olmalı; sipariş "Zamanlı"
+  //    bekler, o an gelince worker Sempico API ile gönderir.
+  // Saat dilimli ISO (panel, tarayıcıdan) olduğu gibi; saat dilimsiz değer (API) Türkiye saati.
+  let scheduleAtUtc: string | null = null;
+  if (opts.scheduleAt) {
+    scheduleAtUtc = parseTurkeyDateTime(opts.scheduleAt);
+    if (!scheduleAtUtc) {
+      return { ok: false, error: "Geçersiz gönderim tarihi. Örnek: 2026-11-05T14:30:00+03:00", code: 400 };
+    }
+    const at = Date.parse(scheduleAtUtc);
+    if (at < Date.now() - 60_000) {
+      return { ok: false, error: "İleri tarihli gönderim zamanı, oluşturma saatinden sonra olmalıdır.", code: 422 };
+    }
+    if (at <= Date.now() + 30_000) scheduleAtUtc = null; // ~şimdi: hemen gönder
+  }
   try {
     // panel: oturum JWT'siyle (auth.uid() için); public API: service_role + p_user_id
     const supabase = opts.viaServiceRole ? createAdminClient() : await createClient();
     const { data, error } = await supabase.rpc("rpc_create_order", {
       p_recipients: opts.recipients as unknown as Json,
       p_message: opts.message,
-      p_schedule_at: null,
+      p_schedule_at: scheduleAtUtc,
       p_source: opts.source,
       p_idempotency_key: opts.idempotencyKey ?? null,
       p_contact_list_id: opts.contactListId ?? null,
@@ -251,10 +266,10 @@ export async function processSendBatch(limit = 250): Promise<{ claimed: number; 
     const cbFull = callbackUrl
       ? `${process.env.APP_URL || ""}/api/v1/webhooks/dlr/${provider.name}?u=${m.user_id}`
       : undefined;
-    // Gönderim anı = siparişin veritabanına kaydedildiği an (created_at). Adapter bunu
-    // sağlayıcının saatine (Sempico: UTC) çevirip beginDate/beginTime olarak iletir;
+    // Gönderim anı = siparişin gönderim zamanı (hemen: oluşturma anı, ileri tarihli: seçilen an).
+    // Adapter bunu Sempico saatine (UTC) çevirip beginDate/beginTime olarak iletir;
     // an geçmişte kaldıysa (yeniden deneme) "şimdi" kullanılır.
-    const res = await provider.sendSms(m.recipient, m.body, { callbackUrl: cbFull, sendAt: m.created_at });
+    const res = await provider.sendSms(m.recipient, m.body, { callbackUrl: cbFull, sendAt: m.next_attempt_at ?? m.created_at });
 
     const { data: completed, error: completeErr } = await admin.rpc("rpc_complete_send", {
       p_message_id: m.id,
