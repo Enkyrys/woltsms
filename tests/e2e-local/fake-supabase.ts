@@ -20,7 +20,11 @@ class Query {
   constructor(private table: string) {}
   select(c = "*") { if (this.op === "select") this.cols = c; return this; }
   eq(c: string, v: unknown) { this.filters.push(`${ident(c)} = ${lit(v)}`); return this; }
-  is(c: string, v: unknown) { this.filters.push(`${ident(c)} is ${v === null ? "null" : String(v)}`); return this; }
+  neq(c: string, v: unknown) { this.filters.push(`${ident(c)} <> ${lit(v)}`); return this; }
+  gt(c: string, v: unknown) { this.filters.push(`${ident(c)} > ${lit(v)}`); return this; }
+  gte(c: string, v: unknown) { this.filters.push(`${ident(c)} >= ${lit(v)}`); return this; }
+  lt(c: string, v: unknown) { this.filters.push(`${ident(c)} < ${lit(v)}`); return this; }
+    is(c: string, v: unknown) { this.filters.push(`${ident(c)} is ${v === null ? "null" : String(v)}`); return this; }
   in(c: string, vs: unknown[]) { this.filters.push(vs.length ? `${ident(c)} in (${vs.map(lit).join(",")})` : "false"); return this; }
   order(c: string, o?: { ascending?: boolean }) { this.orderBy = ` order by ${ident(c)} ${o?.ascending === false ? "desc" : "asc"}`; return this; }
   limit(n: number) { this.lim = ` limit ${n}`; return this; }

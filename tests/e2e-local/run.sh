@@ -14,4 +14,6 @@ $P -f tests/e2e-local/supabase-stubs.sql >/dev/null 2>&1
 for f in supabase/migrations/*.sql; do case "$f" in *0003*) continue;; esac; $P -f "$f" >/dev/null 2>&1 || { echo "migration hatası: $f"; exit 1; }; done
 echo "migration'lar uygulandı"
 $P -f tests/e2e-local/campaign-scenarios.sql
+$P -f tests/e2e-local/activity-scenarios.sql
 ENCRYPTION_KEY="${ENCRYPTION_KEY:-$(printf 'a%.0s' {1..64})}" PGHOST="$SOCK" ${TSX:-npx tsx} --tsconfig tests/e2e-local/tsconfig.json tests/e2e-local/e2e-worker.mts
+ENCRYPTION_KEY="${ENCRYPTION_KEY:-$(printf 'a%.0s' {1..64})}" PGHOST="$SOCK" ${TSX:-npx tsx} --tsconfig tests/e2e-local/tsconfig.activity.json tests/e2e-local/e2e-activity.mts

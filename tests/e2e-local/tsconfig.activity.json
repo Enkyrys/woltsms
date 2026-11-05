@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@/lib/supabase/admin": [
+        "./fake-supabase.ts"
+      ],
+      "@/lib/supabase/server": [
+        "./fake-supabase.ts"
+      ],
+      "@/lib/auth": [
+        "./auth-shim.ts"
+      ],
+      "next/server": [
+        "./next-server-shim.ts"
+      ],
+      "@/*": [
+        "../../src/*"
+      ]
+    }
+  }
+}

@@ -1,3 +1,16 @@
+# Değişiklik özeti — Kullanıcı Aktivitesi ve giriş zili
+
+| Dosya | Değişiklik |
+|---|---|
+| `supabase/migrations/0018_user_activity.sql` | YENİ — `user_sessions` (giriş / yeniden aktif → çıkış / sinyal kesildi), `profiles.last_login_at`, `last_seen_at`, `presence_timeout_seconds` ayarı (vars. 180 sn) |
+| `src/lib/presence.ts`, `api/auth/login`, `api/auth/logout`, `api/panel/presence` | Girişte oturum açılır (httpOnly `wsid` çerezi), panel açıkken dakikada bir sinyal, çıkışta oturum kapanır |
+| `src/app/api/panel/admin/activity/route.ts` | YENİ — admin: kullanıcıların çevrimiçi/pasif durumu, aktif olduğu / pasif olduğu an, son giriş, bugünkü oturum ve süre, cihaz/IP, olay akışı; `?since=` ile giriş zili yoklaması |
+| `src/app/panel/admin/kullanici-aktivitesi/page.tsx` | YENİ — Kullanıcı Aktivitesi sayfası (15 sn'de bir yenilenir), giriş zili aç/kapat ve "Zili dene" |
+| `src/components/AdminOrderAlert.tsx` | Bir kullanıcı girdiğinde (ya da pasifken geri döndüğünde) "ding-dong" zil + ekran bildirimi; adminin kendi girişi hariç |
+| `src/components/PanelShell.tsx` | Her kullanıcı için "buradayım" sinyali; admin menüsüne Kullanıcı Aktivitesi |
+| `src/lib/services.ts` | Dakikalık zamanlayıcı sinyali kesilen oturumları kapatır |
+| `tests/e2e-local/` | Aktivite senaryoları (SQL) + giriş/çıkış/sinyal/admin API uçtan uca testi |
+
 # Değişiklik özeti — SMS kampanyaları, zamanlanmış gönderim, ENKYRYS marka adı
 
 | Dosya | Değişiklik |
