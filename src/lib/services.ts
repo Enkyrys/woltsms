@@ -523,6 +523,9 @@ export async function runWorker(): Promise<{
     processImportJobs(3).catch(() => 0),
   ]);
 
+  // kullanıcı aktivitesi: sinyali kesilen oturumları "pasif" olarak kapat
+  await Promise.resolve(admin.rpc("rpc_close_stale_sessions")).catch(() => undefined);
+
   // 7/24 izleme: zamanlayıcının en son ne zaman çalıştığı (Sistem > Sağlık'ta gösterilir)
   await admin
     .from("system_settings")

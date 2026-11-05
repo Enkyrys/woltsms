@@ -3,6 +3,7 @@ import { z } from "zod";
 import { loginWithUsername } from "@/lib/auth";
 import { badRequest, unauthorized } from "@/lib/api-response";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { touchPresence, PRESENCE_COOKIE, presenceCookieOptions } from "@/lib/presence";
 
 const LoginSchema = z.object({
   username: z.string().min(1, "Kullanıcı adı gerekli."),
@@ -50,5 +51,9 @@ export async function POST(req: Request) {
     return unauthorized(result.error);
   }
 
-  return NextResponse.json({ success: true, code: 200, message: "Giriş başarılı." });
+  // kullanıcı aktivitesi: yeni oturum (admin panelinde "giriş yaptı" + zil)
+  const { sessionId } = await touchPresence({ userId: result.userId, reason: "login", req });
+  const res = NextResponse.json({ success: true, code: 200, message: "Giriş başarılı." });
+  if (sessionId) res.cookies.set(PRESENCE_COOKIE, sessionId, presenceCookieOptions);
+  return res;
 }

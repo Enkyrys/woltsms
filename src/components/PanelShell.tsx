@@ -32,6 +32,7 @@ const MENU: { href: string; label: string; perm?: string; admin?: boolean }[] = 
 ];
 
 const ADMIN_MENU = [
+  { href: "/panel/admin/kullanici-aktivitesi", label: "Kullanıcı Aktivitesi" },
   { href: "/panel/admin/kredi-talepleri", label: "Kredi Talepleri" },
   { href: "/panel/admin/odeme-ayarlari", label: "Ödeme Ayarları" },
   { href: "/panel/admin/sistem", label: "Sistem & Sağlayıcı" },
@@ -70,6 +71,18 @@ export default function PanelShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
+
+  // kullanıcı aktivitesi: panel açıkken ~60 sn'de bir "buradayım" sinyali.
+  // Sinyal ~3 dk gelmezse kullanıcı admin panelinde "pasif" görünür.
+  useEffect(() => {
+    if (!me) return;
+    const beat = () => { void fetch("/api/panel/presence", { method: "POST", keepalive: true }).catch(() => undefined); };
+    beat();
+    const t = setInterval(beat, 60_000);
+    const onVis = () => { if (document.visibilityState === "visible") beat(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis); };
+  }, [me?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!showUser && !showNotifs) return;

@@ -110,7 +110,7 @@ export async function hasPermission(s: SessionUser | null, perm: string): Promis
 // ===================== giriş (kullanıcı adı → e-posta) =====================
 
 export async function loginWithUsername(username: string, password: string): Promise<
-  { ok: true } | { ok: false; error: string; code: number }
+  { ok: true; userId: string } | { ok: false; error: string; code: number }
 > {
   const admin = createAdminClient();
   // kullanıcı adını e-postaya çöz
@@ -122,7 +122,7 @@ export async function loginWithUsername(username: string, password: string): Pro
   if (error || !data.user) {
     return { ok: false, error: "Geçersiz kullanıcı veya şifre.", code: 401 };
   }
-  return { ok: true };
+  return { ok: true, userId: data.user.id };
 }
 
 export async function logout(): Promise<void> {
