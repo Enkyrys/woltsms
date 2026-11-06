@@ -1,3 +1,16 @@
+# Değişiklik özeti — Kullanıcı düzenleme onarımı, Hesabım / Şifre Değiştir, Üyelik Yönetimi
+
+| Dosya | Değişiklik |
+|---|---|
+| `supabase/migrations/0019_user_management.sql` | YENİ — `admin_update_user_v2` (telefon temizleme, 0/negatif fiyat engeli, aktif/pasif, kendi admin rolünü kaldırma / kendini pasifleştirme / son admini kapatma engeli, değişiklikler denetim kaydında); `admin_user_delete_preview`; `admin_delete_user_v2` (kendini, son admini ve gönderimi süren kullanıcıyı silmez, silmeden önce özet denetim kaydına). **Hata düzeltmesi:** `wallet_transactions` üzerindeki "do instead nothing" kuralları, işlem geçmişi olan kullanıcıların silinmesini tamamen engelliyordu (`referential integrity query ... gave unexpected result`); aynı korumayı sağlayan tetikleyiciyle değiştirildi |
+| `src/app/api/panel/users/route.ts` | Düzenleme onarıldı: boş birim fiyat artık 0 yazmıyor, virgüllü fiyat kabul ediliyor, formdaki şifre alanı artık gerçekten şifreyi sıfırlıyor, e-posta Supabase Auth Admin API ile değişiyor (çakışma kontrolü), aktif/pasif, Türkçe ve alana özel hata mesajları; silme önizlemesi ve güvenli silme |
+| `src/app/panel/kullanicilar/page.tsx` | Hesap durumu anahtarı, şifre göster/gizle + kural göstergesi, form içi hata mesajları, "Tehlikeli bölge · Üyeliği sil" |
+| `src/app/panel/hesabim/page.tsx`, `api/panel/account*` | YENİ — Hesabım (isim, telefon, e-posta) ve Şifre Değiştir (mevcut şifre doğrulaması, politika göstergesi, diğer cihazlardaki oturumları kapatma, 15 dk'da 5 deneme sınırı) |
+| `src/app/panel/admin/uyelikler/page.tsx`, `UserDeleteModal.tsx` | YENİ — Üyelik Yönetimi: askıya al / aktifleştir / kalıcı sil (silinecek verilerin özeti + kullanıcı adını yazarak onay) |
+| `src/lib/auth.ts` | Askıya alınan hesabın açık oturumu ve API anahtarları da anında kapanır |
+| `src/components/PanelShell.tsx` | Menü: Hesabım, Şifre Değiştir; profil menüsünde kısayollar; admin menüsünde Üyelik Yönetimi |
+| `tests/e2e-local/` | Kullanıcı yönetimi SQL senaryoları + uçtan uca test (26 kontrol) |
+
 # Değişiklik özeti — Kullanıcı Aktivitesi ve giriş zili
 
 | Dosya | Değişiklik |

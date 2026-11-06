@@ -19,6 +19,9 @@
       ],
       "@/*": [
         "../../src/*"
+      ],
+      "@supabase/supabase-js": [
+        "./supabase-js-shim.ts"
       ]
     }
   }

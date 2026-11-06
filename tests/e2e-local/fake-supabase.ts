@@ -1,8 +1,10 @@
 // Test için: supabase-js admin istemcisinin worker'ın kullandığı alt kümesini yerel Postgres'e (psql) bağlar.
 import { execFileSync } from "node:child_process";
 
-export function sql(q: string): string {
-  return execFileSync("psql", ["-h", process.env.PGHOST || "/var/tmp/pgsock", "-p", process.env.PGPORT || "5499", "-U", process.env.PGUSER || "postgres", "-d", process.env.PGDATABASE || "postgres", "-v", "ON_ERROR_STOP=1", "-tAq", "-c", q], { encoding: "utf8" }).trim();
+export function sql(q: string, uid = ""): string {
+  // uid: auth.uid() için bağlantı ayarı (request.jwt.claim.sub)
+  const env = { ...process.env, PGOPTIONS: `-c request.jwt.claim.sub=${uid.replace(/[^0-9a-f-]/gi, "")}` };
+  return execFileSync("psql", ["-h", process.env.PGHOST || "/var/tmp/pgsock", "-p", process.env.PGPORT || "5499", "-U", process.env.PGUSER || "postgres", "-d", process.env.PGDATABASE || "postgres", "-v", "ON_ERROR_STOP=1", "-tAq", "-c", q], { encoding: "utf8", env }).trim();
 }
 const lit = (v: unknown): string =>
   v === null || v === undefined ? "null" : `'${String(typeof v === "object" ? JSON.stringify(v) : v).replace(/'/g, "''")}'`;
@@ -63,19 +65,61 @@ class Query {
 }
 
 const SETOF = new Set(["rpc_claim_send_batch"]);
-const client = {
-  from: (t: string) => new Query(t),
-  rpc: async (name: string, args: Record<string, unknown> = {}) => {
+
+// Supabase Auth Admin API taklidi: auth.users üzerinde, şifreler pgcrypto (bcrypt) ile
+type AuthUser = { id: string; email: string; user_metadata: Record<string, unknown> };
+const authUser = (id: string): AuthUser | null => {
+  const out = sql(`select json_build_object('id', id, 'email', email, 'user_metadata', coalesce(raw_user_meta_data, '{}'::jsonb)) from auth.users where id = ${lit(id)}`);
+  return out ? JSON.parse(out) : null;
+};
+const authAdmin = {
+  getUserById: async (id: string) => ({ data: { user: authUser(id) }, error: null }),
+  listUsers: async () => ({ data: { users: JSON.parse(sql(`select coalesce(json_agg(json_build_object('id', id, 'email', email)), '[]') from auth.users`) || "[]") }, error: null }),
+  updateUserById: async (id: string, a: { email?: string; password?: string; user_metadata?: Record<string, unknown> }) => {
     try {
-      const a = Object.entries(args).map(([k, v]) => `${k} => ${lit(v)}`).join(", ");
-      const out = SETOF.has(name)
-        ? sql(`select coalesce(json_agg(t), '[]') from public.${name}(${a}) t`)
-        : sql(`select to_jsonb(public.${name}(${a}))`);
-      return { data: out ? JSON.parse(out) : null, error: null };
+      if (a.email && sql(`select count(*) from auth.users where lower(email) = lower(${lit(a.email)}) and id <> ${lit(id)}`) !== "0") {
+        return { data: null, error: { message: "A user with this email address has already been registered" } };
+      }
+      const sets: string[] = [];
+      if (a.email) sets.push(`email = ${lit(a.email)}`);
+      if (a.password) sets.push(`encrypted_password = extensions.crypt(${lit(a.password)}, extensions.gen_salt('bf'))`);
+      if (a.user_metadata) sets.push(`raw_user_meta_data = ${lit(a.user_metadata)}::jsonb`);
+      if (sets.length) sql(`update auth.users set ${sets.join(", ")}, updated_at = now() where id = ${lit(id)}`);
+      return { data: { user: authUser(id) }, error: null };
     } catch (e) {
       return { data: null, error: { message: (e as Error).message } };
     }
   },
 };
-export function createAdminClient() { return client; }
-export async function createClient() { return client; }
+
+function makeClient(asUser: boolean) {
+  return {
+    from: (t: string) => new Query(t),
+    rpc: async (name: string, args: Record<string, unknown> = {}) => {
+      try {
+        const a = Object.entries(args).map(([k, v]) => `${k} => ${lit(v)}`).join(", ");
+        // kullanıcı istemcisi: auth.uid() = oturumdaki kullanıcı (testte globalThis.__session)
+        const uid = asUser ? ((globalThis as { __session?: { id: string } | null }).__session?.id ?? "") : "";
+        const out = SETOF.has(name)
+          ? sql(`select coalesce(json_agg(t), '[]') from public.${name}(${a}) t`, uid)
+          : sql(`select to_jsonb(public.${name}(${a}))`, uid);
+        return { data: out ? JSON.parse(out) : null, error: null };
+      } catch (e) {
+        return { data: null, error: { message: (e as Error).message } };
+      }
+    },
+    auth: {
+      admin: authAdmin,
+      signOut: async () => ({ error: null }),
+      signInWithPassword: async ({ email, password }: { email: string; password: string }) => {
+        const okPw = sql(`select (encrypted_password = extensions.crypt(${lit(password)}, encrypted_password))::text from auth.users where lower(email) = lower(${lit(email)})`);
+        return okPw === "true" ? { data: { user: { email } }, error: null } : { data: { user: null }, error: { message: "Invalid login credentials" } };
+      },
+    },
+  };
+}
+const adminClient = makeClient(false);
+export function createAdminClient() { return adminClient; }
+export async function createClient() { return makeClient(true); }
+// @supabase/supabase-js createClient yerine (şifre doğrulama istemcisi)
+export function createSupabaseJsClient() { return makeClient(false); }
