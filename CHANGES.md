@@ -1,3 +1,16 @@
+# Değişiklik özeti — Ana sayfada iletişim adresleri + Yeni Üyelik Aç
+
+| Dosya | Değişiklik |
+|---|---|
+| `src/app/page.tsx` | Üst menü ve banner'daki "Giriş Yap" yerine Telegram / WhatsApp / e-posta adresleri ve "Yeni Üyelik Aç"; mobilde iletişim satırı; bayi girişi iletişim bölümünde ve sayfa altında; e-posta kartında satır kırılması düzeltildi |
+| `src/app/kayit/page.tsx` | YENİ — Yeni Üyelik Aç formu (ad/firma, kullanıcı adı, telefon, e-posta, şifre + kural göstergesi, not, onay kutusu, bot tuzağı) ve iletişim adresleri |
+| `src/app/api/auth/register/route.ts` | YENİ — başvuru: doğrulama, şifre politikası, IP başına sınır |
+| `supabase/migrations/0020_member_signup.sql` | YENİ — `rpc_register_member` (hesap askıda, rol Consumer, bakiye 0), `admin_approve_member` (+ kullanıcıya bildirim), `signup_enabled` / `signup_default_role` ayarları, aynı IP'den günde en fazla 3 bekleyen başvuru |
+| `src/app/api/auth/login/route.ts`, `login/page.tsx` | Onay bekleyen üye doğru şifreyle girerse "başvurunuz onay bekliyor" (yanlış şifrede genel hata); giriş sayfasında "Yeni Üyelik Aç" bağlantısı |
+| `src/app/panel/admin/uyelikler/page.tsx`, `api/panel/users` | "Onay bekleyen başvurular" bölümü: Onayla / Reddet, WhatsApp bağlantılı telefon, başvuru notu |
+| `src/components/AdminOrderAlert.tsx`, `api/panel/admin/activity` | Yeni başvuruda admin panelinde zil + "Yeni üyelik başvurusu" bildirimi |
+| `tests/e2e-local/e2e-signup.mts` | Başvuru → onay bekleyen giriş → zil → onay/ret → kötüye kullanım uçtan uca testi |
+
 # Değişiklik özeti — Kullanıcı düzenleme onarımı, Hesabım / Şifre Değiştir, Üyelik Yönetimi
 
 | Dosya | Değişiklik |
