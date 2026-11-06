@@ -15,8 +15,8 @@ const FEATURES = [
 ];
 
 const STEPS = [
-  { n: "1", t: "Paketinizi seçin", d: "İhtiyacınıza uygun paketi belirleyin." },
-  { n: "2", t: "Bizimle iletişime geçin", d: "Telegram veya WhatsApp üzerinden ulaşın, hesabınız açılsın ve bakiyeniz yüklensin." },
+  { n: "1", t: "Yeni üyelik açın", d: "Formu doldurun; üyeliğiniz onaylanınca panele giriş yapabilirsiniz." },
+  { n: "2", t: "Bakiyenizi yükleyin", d: "Paketinizi seçin, havale veya kripto ile yükleyin; sorularınız için Telegram veya WhatsApp'tan ulaşın." },
   { n: "3", t: "Panelden gönderin", d: "Giriş yapın, mesajınızı yazın ve gönderin." },
 ];
 
@@ -41,7 +41,23 @@ export default function Home() {
             <a href="#nasil" className="hover:text-[#0A8F7E]">Nasıl Çalışır</a>
             <a href="#iletisim" className="hover:text-[#0A8F7E]">İletişim</a>
           </nav>
-          <a href="/login" className="btn-primary inline-block px-5 py-2 text-sm">Giriş Yap</a>
+          <div className="flex items-center gap-2">
+            <a href={SITE.telegramUrl} target="_blank" rel="noopener noreferrer" title={`Telegram: ${SITE.telegramHandle}`}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-[13px] font-semibold text-slate-700 hover:border-[#0FB5A0] hover:text-[#0A8F7E]">
+              <span aria-hidden>✈️</span><span className="hidden lg:inline">{SITE.telegramHandle}</span><span className="lg:hidden">Telegram</span>
+            </a>
+            <a href={SITE.whatsappUrl} target="_blank" rel="noopener noreferrer" title={`WhatsApp: ${SITE.whatsappNumber}`}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-[13px] font-semibold text-slate-700 hover:border-[#0FB5A0] hover:text-[#0A8F7E]">
+              <span aria-hidden>💬</span><span className="hidden lg:inline">{SITE.whatsappNumber}</span><span className="lg:hidden">WhatsApp</span>
+            </a>
+            <a href="/kayit" className="btn-primary inline-block px-4 py-2 text-sm whitespace-nowrap">Yeni Üyelik Aç</a>
+          </div>
+        </div>
+        {/* mobil: iletişim adresleri */}
+        <div className="sm:hidden flex gap-2 px-4 pb-2 text-[12px] font-semibold">
+          <a href={SITE.telegramUrl} target="_blank" rel="noopener noreferrer" className="flex-1 text-center rounded-lg border border-slate-200 py-1.5">✈️ Telegram</a>
+          <a href={SITE.whatsappUrl} target="_blank" rel="noopener noreferrer" className="flex-1 text-center rounded-lg border border-slate-200 py-1.5">💬 WhatsApp</a>
+          <a href={`mailto:${SITE.email}`} className="flex-1 text-center rounded-lg border border-slate-200 py-1.5">✉️ E-posta</a>
         </div>
       </header>
 
@@ -59,8 +75,13 @@ export default function Home() {
               SMS başına <b>₺{unit}</b>. Paketini seç, bakiyeni yükle, panelden veya API ile saniyeler içinde gönder.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
-              <a href="/login" className="bg-white text-[#0A8F7E] font-bold rounded-lg px-6 py-3 hover:bg-[#e6faf7] transition">Giriş Yap</a>
+              <a href="/kayit" className="bg-white text-[#0A8F7E] font-bold rounded-lg px-6 py-3 hover:bg-[#e6faf7] transition">Yeni Üyelik Aç</a>
               <a href="#paketler" className="border-2 border-white/80 font-bold rounded-lg px-6 py-3 hover:bg-white/10 transition">Paketleri İncele</a>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-2 text-[13px]">
+              <a href={SITE.telegramUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-full px-3 py-1.5 font-semibold">✈️ Telegram {SITE.telegramHandle}</a>
+              <a href={SITE.whatsappUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-full px-3 py-1.5 font-semibold">💬 WhatsApp {SITE.whatsappNumber}</a>
+              <a href={mailUrl("WOLTSMS bilgi talebi")} className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-full px-3 py-1.5 font-semibold break-all">✉️ {SITE.email}</a>
             </div>
           </div>
           <div className="bg-white/10 border border-white/20 rounded-2xl p-6 backdrop-blur">
@@ -147,7 +168,7 @@ export default function Home() {
       <section id="iletisim" className="bg-gradient-to-br from-[#0FB5A0] to-[#0A8F7E] text-white py-16 scroll-mt-16">
         <div className="max-w-[900px] mx-auto px-4 lg:px-8 text-center">
           <h2 className="text-3xl font-extrabold">İletişim</h2>
-          <p className="mt-2 text-white/85">Paket satın almak veya hesap açtırmak için bize yazın.</p>
+          <p className="mt-2 text-white/85">Paket satın almak, özel fiyat almak veya üyelik onayınızı hızlandırmak için bize yazın.</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-8 text-left">
             <a href={SITE.telegramUrl} target="_blank" rel="noopener noreferrer" className="bg-white text-slate-800 rounded-xl p-6 hover:shadow-xl transition block">
               <div className="text-[12px] font-bold text-[#0FB5A0] tracking-wide">TELEGRAM</div>
@@ -161,16 +182,19 @@ export default function Home() {
             </a>
             <a href={mailUrl("WOLTSMS bilgi talebi")} className="bg-white text-slate-800 rounded-xl p-6 hover:shadow-xl transition block">
               <div className="text-[12px] font-bold text-[#0FB5A0] tracking-wide">E-POSTA</div>
-              <div className="text-xl font-extrabold mt-1 break-all">{SITE.email}</div>
+              <div className="text-lg font-extrabold mt-1 [overflow-wrap:anywhere]">{SITE.email}</div>
               <div className="text-[13px] text-slate-500 mt-1">Teklif ve kurumsal talepler için</div>
             </a>
           </div>
-          <a href="/login" className="inline-block mt-8 bg-white text-[#0A8F7E] font-bold rounded-lg px-7 py-3 hover:bg-[#e6faf7] transition">Zaten hesabınız var mı? Giriş Yap</a>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <a href="/kayit" className="inline-block bg-white text-[#0A8F7E] font-bold rounded-lg px-7 py-3 hover:bg-[#e6faf7] transition">Yeni Üyelik Aç</a>
+            <a href="/login" className="inline-block border-2 border-white/80 font-bold rounded-lg px-7 py-3 hover:bg-white/10 transition">Bayi Girişi</a>
+          </div>
         </div>
       </section>
 
       <footer className="py-6 text-center text-[13px] text-slate-400">
-        © {new Date().getFullYear()} {SITE.name}. Tüm hakları saklıdır.
+        © {new Date().getFullYear()} {SITE.name}. Tüm hakları saklıdır. · <a href="/login" className="hover:text-[#0A8F7E]">Bayi girişi</a>
       </footer>
     </div>
   );

@@ -35,8 +35,23 @@ export async function GET(req: Request) {
       const { data: profiles } = await admin.from("profiles").select("id, username, name").in("id", uids);
       for (const p of profiles ?? []) names.set(p.id, { username: p.username, name: p.name });
     }
+    // yeni üyelik başvuruları (zil + bildirim)
+    const validSince = since && Number.isFinite(Date.parse(since)) ? since : null;
+    let signups: { id: string; username: string; name: string; created_at: string }[] = [];
+    {
+      let sq = admin.from("profiles").select("id, username, name, created_at").eq("signup_pending", true).order("created_at", { ascending: false }).limit(10);
+      if (validSince) sq = sq.gt("created_at", validSince);
+      const { data: srows } = await sq;
+      signups = (srows ?? []) as typeof signups;
+    }
+    const latestCandidates = [list[0]?.started_at, signups[0]?.created_at].filter(Boolean) as string[];
+    const latest = latestCandidates.sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? validSince;
+
     return ok({
-      latest: list[0]?.started_at ?? (since && Number.isFinite(Date.parse(since)) ? since : null),
+      latest,
+      signups: validSince
+        ? signups.map((x) => ({ userId: x.id, username: x.username, name: x.name, at: x.created_at }))
+        : [],
       serverTime: new Date().toISOString(),
       events: since && Number.isFinite(Date.parse(since))
         ? list.map((r) => ({

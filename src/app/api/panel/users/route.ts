@@ -18,10 +18,13 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const page = Math.max(1, Number(url.searchParams.get("page") || 1));
   const perPage = Math.min(100, Number(url.searchParams.get("perPage") || 10));
-  const search = url.searchParams.get("search") || "";
+  const search = (url.searchParams.get("search") || "").replace(/[%,()]/g, "");
+  const pending = url.searchParams.get("pending"); // "1" → yalnız onay bekleyen başvurular, "0" → hariç
 
   let q = admin.from("profiles").select("*", { count: "exact" });
   if (search) q = q.or(`username.ilike.%${search}%,name.ilike.%${search}%`);
+  if (pending === "1") q = q.eq("signup_pending", true);
+  else if (pending === "0") q = q.eq("signup_pending", false);
   const { count, data } = await q
     .order("created_at", { ascending: false })
     .range((page - 1) * perPage, page * perPage - 1);
@@ -57,6 +60,10 @@ export async function GET(req: Request) {
       unitPrice: String(priceMap.get(p.id) ?? ""),
       twoFactor: p.two_factor_enabled,
       roleName: roleMap.get(p.role_id ?? "") ?? "",
+      signupPending: !!p.signup_pending,
+      signupNote: p.signup_note ?? "",
+      signupIp: p.signup_ip ?? "",
+      approvedAt: p.approved_at ?? null,
       createdAt: p.created_at,
       updatedAt: p.updated_at,
     })),
@@ -150,6 +157,7 @@ const UpdateSchema = z.object({
     z.coerce.number({ invalid_type_error: "Birim fiyat sayı olmalı." }).positive("Birim fiyat 0'dan büyük olmalı.").optional()
   ),
   isActive: z.boolean().optional(),
+  approve: z.boolean().optional(), // üyelik başvurusunu onayla
   password: z.preprocess(blank, z.string().optional()), // doluysa şifre sıfırlanır
   adjustAmount: z.preprocess(
     (v) => (blank(v) === undefined ? undefined : typeof v === "string" ? v.replace(",", ".") : v),
@@ -178,8 +186,17 @@ export async function PATCH(req: Request) {
   const { data: target } = await admin.from("profiles").select("id, username").eq("id", b.id).maybeSingle();
   if (!target) return notFound("Kullanıcı bulunamadı.");
 
-  // 1) profil alanları (doğrulamalı, denetim kayıtlı)
   const user = await createUserClient();
+
+  // üyelik başvurusu onayı
+  if (b.approve) {
+    const { data: ap, error: apErr } = await user.rpc("admin_approve_member", { p_user_id: b.id });
+    if (apErr) return userError(apErr.message);
+    const st = (ap as { status?: string } | null)?.status;
+    return ok({ approved: true }, st === "already_approved" ? `@${target.username} zaten onaylı.` : `@${target.username} üyeliği onaylandı; artık giriş yapabilir.`);
+  }
+
+  // 1) profil alanları (doğrulamalı, denetim kayıtlı)
   const { data: upd, error } = await user.rpc("admin_update_user_v2", {
     p_user_id: b.id,
     p_name: b.name ?? null,

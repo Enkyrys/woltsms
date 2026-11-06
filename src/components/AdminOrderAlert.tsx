@@ -20,6 +20,7 @@ export const EVT_TEST_BELL = "woltsms:test-bell";
 const LOGIN_TOAST_MS = 20_000;
 
 type NewOrder = { id: string; dealer: string; totalCount: number; totalCost: string; source: string; createdAt: string };
+type SignupEvent = { userId: string; username: string; name: string; at: string };
 type LoginEvent = { sessionId: string; userId: string; username: string; name: string; reason: "login" | "resume"; at: string };
 
 function lsGet(k: string): string | null {
@@ -138,6 +139,7 @@ export default function AdminOrderAlert() {
   const [needsUnlock, setNeedsUnlock] = useState(false);
   const [toast, setToast] = useState<NewOrder[]>([]);
   const [logins, setLogins] = useState<LoginEvent[]>([]);
+  const [signups, setSignups] = useState<SignupEvent[]>([]);
   const loginSinceRef = useRef<string | null>(null);
   const bellStopRef = useRef<(() => void) | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
@@ -222,16 +224,16 @@ export default function AdminOrderAlert() {
       try {
         const r = await fetch(`/api/panel/admin/activity?since=${encodeURIComponent(loginSinceRef.current ?? "")}`, { cache: "no-store" });
         if (r.ok) {
-          const j = (await r.json()) as { data?: { latest: string | null; serverTime: string; events: LoginEvent[] } };
+          const j = (await r.json()) as { data?: { latest: string | null; serverTime: string; events: LoginEvent[]; signups?: SignupEvent[] } };
           const d = j.data;
           if (d && !cancelled) {
             const hadBaseline = Boolean(loginSinceRef.current);
             const next = d.latest || d.serverTime;
             if (next) { loginSinceRef.current = next; lsSet(LS_LOGIN_SEEN, next); }
-            if (hadBaseline && d.events.length > 0) {
-              setLogins((prev) => [...d.events, ...prev].slice(0, 5));
-              void bell();
-            }
+            const newSignups = d.signups ?? [];
+            if (hadBaseline && newSignups.length > 0) setSignups((prev) => [...newSignups, ...prev].slice(0, 5));
+            if (hadBaseline && d.events.length > 0) setLogins((prev) => [...d.events, ...prev].slice(0, 5));
+            if (hadBaseline && (d.events.length > 0 || newSignups.length > 0)) void bell();
           }
         }
       } catch { /* bir sonraki turda tekrar dener */ }
@@ -322,12 +324,27 @@ export default function AdminOrderAlert() {
         {!muted && needsUnlock && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500" />}
       </button>
 
-      {(toast.length > 0 || logins.length > 0 || (!muted && needsUnlock)) && (
+      {(toast.length > 0 || logins.length > 0 || signups.length > 0 || (!muted && needsUnlock)) && (
         <div className="fixed top-4 right-4 z-[100] w-[min(360px,calc(100vw-32px))] space-y-2" role="alert" aria-live="assertive">
           {!muted && needsUnlock && (
             <div className="card p-3 text-[13px] border border-amber-300 bg-amber-50 text-amber-900 flex items-center justify-between gap-3">
               <span>Sesli bildirimler (sipariş sireni, giriş zili) için sesi etkinleştirin.</span>
               <button className="btn-primary px-3 py-1.5 text-[12px]" onClick={async () => { const c = await ensureCtx(); if (c?.state === "running") { setNeedsUnlock(false); if (toast.length) void ring(); else if (logins.length) void bell(); } }}>Sesi aç</button>
+            </div>
+          )}
+          {signups.length > 0 && (
+            <div className="card p-0 overflow-hidden border-2 border-amber-400 shadow-2xl">
+              <div className="px-4 py-2 bg-amber-500 text-white font-bold text-sm flex items-center justify-between">
+                <span>🆕 Yeni üyelik başvurusu ({signups.length})</span>
+                <button onClick={() => { bellStopRef.current?.(); setSignups([]); }} className="text-white/90 hover:text-white text-[13px]" aria-label="Kapat">✕</button>
+              </div>
+              {signups.map((e) => (
+                <a key={e.userId} href="/panel/admin/uyelikler" onClick={() => setSignups([])} className="flex items-center gap-2 px-4 py-2 border-b text-[13px] hover:bg-slate-50 dark:hover:bg-slate-800">
+                  <span className="font-semibold truncate">{e.name}</span>
+                  <span className="text-slate-500 truncate">@{e.username} · onay bekliyor</span>
+                  <span className="ml-auto text-slate-400 text-[11px]">{new Date(e.at).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</span>
+                </a>
+              ))}
             </div>
           )}
           {logins.length > 0 && (

@@ -4,6 +4,23 @@ import { loginWithUsername } from "@/lib/auth";
 import { badRequest, unauthorized } from "@/lib/api-response";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { touchPresence, PRESENCE_COOKIE, presenceCookieOptions } from "@/lib/presence";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+
+async function isPendingMemberWithPassword(username: string, password: string): Promise<boolean> {
+  try {
+    const { data: email } = await createAdminClient().rpc("pending_member_email", { p_username: username });
+    if (!email) return false;
+    const verifier = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const { error } = await verifier.auth.signInWithPassword({ email: String(email), password });
+    if (error) return false;
+    await verifier.auth.signOut().catch(() => undefined);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const LoginSchema = z.object({
   username: z.string().min(1, "Kullanıcı adı gerekli."),
@@ -44,6 +61,13 @@ export async function POST(req: Request) {
 
   const result = await loginWithUsername(username.trim(), password);
   if (!result.ok) {
+    // onay bekleyen üyelik: şifre doğruysa "onay bekliyor" de (yanlış şifrede bilgi sızdırma)
+    if (await isPendingMemberWithPassword(username.trim(), password)) {
+      return NextResponse.json(
+        { success: false, code: 403, message: "Üyelik başvurunuz onay bekliyor. Onaylandığında giriş yapabilirsiniz." },
+        { status: 403 }
+      );
+    }
     // başarısız denemeyi audit'a yaz
     void Promise.resolve(
       admin.from("audit_logs").insert({ action: "auth.login_failed", ip, payload: { username } })

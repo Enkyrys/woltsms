@@ -34,6 +34,7 @@ export default function LoginPage() {
           {err && <div className="text-red-600 text-sm mb-2">{err}</div>}
           <button disabled={loading} className="btn-primary w-full py-3 mt-2">{loading ? "Giriş yapılıyor..." : "Giriş Yap"}</button>
         </form>
+        <p className="text-center text-[13px] text-slate-500 mt-5">Hesabınız yok mu? <a href="/kayit" className="text-[#0A8F7E] font-semibold">Yeni Üyelik Aç</a></p>
       </div>
     </div>
   );
