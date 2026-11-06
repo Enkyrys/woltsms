@@ -208,6 +208,9 @@ uygulanmış olması gerekir.
   `beginDate` / `beginTime` alanlarında **UTC'ye** çevrilerek iletilir
   (UTC+4'te 10:02 → 06:02; `src/lib/timezone.ts`).
   Farklı bir saat dilimi gerekirse sağlayıcı `config.timezone` ile değiştirilebilir.
+- **Kullanıcı Aktivitesi (admin):** `/panel/admin/kullanici-aktivitesi` — kim çevrimiçi, ne zaman
+  aktif oldu / pasif oldu, son giriş, bugünkü süre. Panel açıkken tarayıcı dakikada bir sinyal
+  gönderir; 3 dk sinyal yoksa kullanıcı pasif sayılır. Bir kullanıcı girdiğinde admin panelinde zil çalar.
 - **Kampanyalar:** Yeni Kampanya ekranında "Hemen Gönder" ya da "İleri Tarihte Gönder" seçilir;
   taslak olarak da kaydedilebilir. Zamanlanmış kampanyalar `/panel/zamanlanmis` sayfasında
   gönderim başlamadan düzenlenir veya iptal edilir. Durumlar: Taslak, Zamanlandı, Gönderim
