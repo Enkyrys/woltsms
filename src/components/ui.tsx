@@ -5,8 +5,8 @@ export function PageTitle({ children }: { children: ReactNode }) {
   return <h1 className="text-[22px] font-extrabold text-slate-900 dark:text-white mb-4"># {children}</h1>;
 }
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`card p-5 ${className}`}>{children}</div>;
+export function Card({ children, className = "", id }: { children: ReactNode; className?: string; id?: string }) {
+  return <div id={id} className={`card p-5 ${className}`}>{children}</div>;
 }
 
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {

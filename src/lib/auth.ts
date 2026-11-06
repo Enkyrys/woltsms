@@ -46,6 +46,8 @@ export async function loadUserWithRole(userId: string, email = ""): Promise<Sess
   const admin = createAdminClient();
   const { data: profile } = await admin.from("profiles").select("*").eq("id", userId).maybeSingle();
   if (!profile) return null;
+  // askıya alınmış (pasif) hesap: açık oturumu olsa bile panel ve API erişimi kapanır
+  if (profile.is_active === false) return null;
 
   const [{ data: wallet }, { data: perms }, { data: pricingRows }] = await Promise.all([
     admin.from("wallets").select("balance, reserved").eq("user_id", userId).maybeSingle(),

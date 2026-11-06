@@ -115,18 +115,50 @@ export async function POST(req: Request) {
   return ok({ id: d.id, username: d.username, generatedPassword: body.password ? undefined : password }, "Kullanıcı oluşturuldu.");
 }
 
+// Türkçe hata mesajları (RPC hata anahtarı → mesaj)
+const USER_ERRORS: Record<string, { msg: string; code: number }> = {
+  NO_PERMISSION: { msg: "Bu işlem için yetkiniz yok.", code: 403 },
+  USER_NOT_FOUND: { msg: "Kullanıcı bulunamadı.", code: 404 },
+  NAME_REQUIRED: { msg: "İsim boş olamaz.", code: 400 },
+  INVALID_QUOTA_TYPE: { msg: "Geçersiz kota tipi.", code: 400 },
+  INVALID_UNIT_PRICE: { msg: "Birim fiyat 0'dan büyük olmalı.", code: 400 },
+  ROLE_NOT_FOUND: { msg: "Seçilen rol bulunamadı.", code: 404 },
+  SELF_ADMIN_REMOVAL: { msg: "Kendi admin rolünüzü kaldıramazsınız.", code: 409 },
+  SELF_DEACTIVATE: { msg: "Kendi hesabınızı pasifleştiremezsiniz.", code: 409 },
+  SELF_DELETE: { msg: "Kendi üyeliğinizi silemezsiniz.", code: 409 },
+  LAST_ADMIN: { msg: "Sistemdeki son aktif admin pasifleştirilemez, rolü değiştirilemez veya silinemez.", code: 409 },
+  USER_HAS_ACTIVE_CAMPAIGNS: { msg: "Kullanıcının gönderimi süren ya da zamanlanmış kampanyası var. Önce bu kampanyaları iptal edin.", code: 409 },
+};
+function userError(message: string) {
+  const key = Object.keys(USER_ERRORS).find((k) => message.includes(k));
+  const e = key ? USER_ERRORS[key] : { msg: message, code: 400 };
+  return Response.json({ success: false, code: e.code, message: e.msg }, { status: e.code });
+}
+
+// boş metin → undefined (form alanı boş bırakıldıysa değiştirilmez)
+const blank = (v: unknown) => (typeof v === "string" && v.trim() === "" ? undefined : v);
+
 const UpdateSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().email().optional().or(z.literal("").transform(() => undefined)),
-  roleId: z.string().uuid().optional().or(z.literal("").transform(() => undefined)),
+  id: z.string().uuid("Geçersiz kullanıcı."),
+  name: z.string().trim().min(1, "İsim boş olamaz.").max(120).optional(),
+  phone: z.string().trim().max(30).optional(), // "" → telefonu temizle
+  email: z.preprocess(blank, z.string().trim().email("Geçerli bir e-posta girin.").optional()),
+  roleId: z.preprocess(blank, z.string().uuid("Geçersiz rol.").optional()),
   quotaType: z.enum(["variable", "fixed"]).optional(),
-  unitPrice: z.coerce.number().optional(),
-  adjustAmount: z.coerce.number().optional(), // paneldeki "bakiye ayarla"
+  unitPrice: z.preprocess(
+    (v) => (blank(v) === undefined ? undefined : typeof v === "string" ? v.replace(",", ".") : v),
+    z.coerce.number({ invalid_type_error: "Birim fiyat sayı olmalı." }).positive("Birim fiyat 0'dan büyük olmalı.").optional()
+  ),
+  isActive: z.boolean().optional(),
+  password: z.preprocess(blank, z.string().optional()), // doluysa şifre sıfırlanır
+  adjustAmount: z.preprocess(
+    (v) => (blank(v) === undefined ? undefined : typeof v === "string" ? v.replace(",", ".") : v),
+    z.coerce.number({ invalid_type_error: "Kredi tutarı sayı olmalı." }).optional()
+  ),
   adjustDesc: z.string().optional(),
 });
 
+// PATCH: kullanıcı bilgilerini düzenle (users.edit)
 export async function PATCH(req: Request) {
   const s = await getSession();
   if (!s) return unauthorized();
@@ -134,38 +166,91 @@ export async function PATCH(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const parsed = UpdateSchema.safeParse(body);
-  if (!parsed.success) return badRequest("Geçersiz istek.");
+  if (!parsed.success) return badRequest(parsed.error.errors[0]?.message || "Geçersiz istek.");
+  const b = parsed.data;
 
-  const user = await createUserClient();
-  const { error } = await user.rpc("admin_update_user", {
-    p_user_id: parsed.data.id,
-    p_name: parsed.data.name ?? null,
-    p_phone: parsed.data.phone ?? null,
-    p_role_id: parsed.data.roleId ?? null,
-    p_quota_type: parsed.data.quotaType ?? null,
-    p_email: parsed.data.email ?? null,
-    p_unit_price: parsed.data.unitPrice ?? null,
-  });
-  if (error) return badRequest(error.message);
-
-  // paneldeki "bakiye ayarla" kutusu doluysa (rpc_admin_adjust, kendi JWT'siyle)
-  if (parsed.data.adjustAmount && parsed.data.adjustAmount !== 0) {
-    const adj = await adminAdjust(parsed.data.id, parsed.data.adjustAmount, parsed.data.adjustDesc || "Panel bakiye ayarı");
-    if (!adj.ok) return badRequest(adj.error || "Bakiye ayarlanamadı.");
+  if (b.password) {
+    const pwError = validatePasswordPolicy(b.password);
+    if (pwError) return badRequest(pwError);
   }
-  return ok({ updated: true }, "Kullanıcı güncellendi.");
+
+  const admin = createAdminClient();
+  const { data: target } = await admin.from("profiles").select("id, username").eq("id", b.id).maybeSingle();
+  if (!target) return notFound("Kullanıcı bulunamadı.");
+
+  // 1) profil alanları (doğrulamalı, denetim kayıtlı)
+  const user = await createUserClient();
+  const { data: upd, error } = await user.rpc("admin_update_user_v2", {
+    p_user_id: b.id,
+    p_name: b.name ?? null,
+    p_phone: b.phone ?? null,
+    p_role_id: b.roleId ?? null,
+    p_quota_type: b.quotaType ?? null,
+    p_unit_price: b.unitPrice ?? null,
+    p_is_active: b.isActive ?? null,
+  });
+  if (error) return userError(error.message);
+  const changed: string[] = Object.keys(((upd as { changes?: Record<string, unknown> } | null)?.changes) ?? {});
+
+  // 2) e-posta ve şifre: Supabase Auth Admin API (identities ile tutarlı)
+  const authUpdate: { email?: string; email_confirm?: boolean; password?: string } = {};
+  if (b.email) {
+    const { data: au } = await admin.auth.admin.getUserById(b.id);
+    if ((au?.user?.email || "").toLowerCase() !== b.email.toLowerCase()) {
+      authUpdate.email = b.email.toLowerCase();
+      authUpdate.email_confirm = true; // doğrulama maili gönderilmez
+    }
+  }
+  if (b.password) authUpdate.password = b.password;
+  if (Object.keys(authUpdate).length) {
+    const { error: aerr } = await admin.auth.admin.updateUserById(b.id, authUpdate);
+    if (aerr) {
+      const m = aerr.message || "";
+      if (/already|registered|exists|duplicate/i.test(m)) return badRequest("Bu e-posta başka bir kullanıcıda kayıtlı.");
+      return badRequest(`Giriş bilgileri güncellenemedi: ${m}`);
+    }
+    if (authUpdate.email) changed.push("email");
+    if (authUpdate.password) changed.push("password");
+    await admin.from("audit_logs").insert({
+      actor_id: s.id,
+      action: authUpdate.password ? "user.password_reset" : "user.email_change",
+      payload: { user_id: b.id, username: target.username, email: authUpdate.email ?? null, password_reset: !!authUpdate.password },
+    });
+  }
+
+  // 3) paneldeki "bakiye ayarla" kutusu doluysa (rpc_admin_adjust, kendi JWT'siyle)
+  if (b.adjustAmount && b.adjustAmount !== 0) {
+    const adj = await adminAdjust(b.id, b.adjustAmount, b.adjustDesc || "Panel bakiye ayarı");
+    if (!adj.ok) return badRequest(adj.error || "Bakiye ayarlanamadı.");
+    changed.push("balance");
+  }
+
+  return ok(
+    { updated: true, changed },
+    changed.length === 0 ? "Değişiklik yok." : authUpdate.password ? "Kullanıcı güncellendi, şifre sıfırlandı." : "Kullanıcı güncellendi."
+  );
 }
 
+// DELETE ?id=            → üyeliği sil (kullanıcı ve tüm verileri)
+// DELETE ?id=&preview=1  → silinecek verilerin özeti (silmez)
 export async function DELETE(req: Request) {
   const s = await getSession();
   if (!s) return unauthorized();
   if (!hasPermissionSync(s, "users.delete") && !s.isAdmin) return forbidden();
-  const id = new URL(req.url).searchParams.get("id");
-  if (!id) return badRequest("id gerekli.");
-  if (id === s.id) return badRequest("Kendinizi silemezsiniz.");
+  const url = new URL(req.url);
+  const id = url.searchParams.get("id");
+  if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return badRequest("Geçersiz kullanıcı.");
 
   const user = await createUserClient();
-  const { error } = await user.rpc("admin_delete_user", { p_user_id: id });
-  if (error) return badRequest(error.message);
-  return ok({ deleted: true }, "Kullanıcı silindi.");
+  if (url.searchParams.get("preview")) {
+    const { data, error } = await user.rpc("admin_user_delete_preview", { p_user_id: id });
+    if (error) return userError(error.message);
+    return ok(data, "OK");
+  }
+
+  if (id === s.id) return userError("SELF_DELETE");
+  const { data, error } = await user.rpc("admin_delete_user_v2", { p_user_id: id });
+  if (error) return userError(error.message);
+  const d = data as { user?: { username?: string } };
+  return ok({ deleted: true }, `${d.user?.username ?? "Kullanıcı"} üyeliği silindi.`);
 }

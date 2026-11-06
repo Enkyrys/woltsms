@@ -29,10 +29,13 @@ const MENU: { href: string; label: string; perm?: string; admin?: boolean }[] = 
   { href: "/panel/islem-gecmisi", label: "İşlem Geçmişi" },
   { href: "/panel/kisa-url", label: "Kısa URL'ler" },
   { href: "/panel/destek", label: "Destek Talepleri" },
+  { href: "/panel/hesabim", label: "Hesabım" },
+  { href: "/panel/hesabim#sifre", label: "Şifre Değiştir" },
 ];
 
 const ADMIN_MENU = [
   { href: "/panel/admin/kullanici-aktivitesi", label: "Kullanıcı Aktivitesi" },
+  { href: "/panel/admin/uyelikler", label: "Üyelik Yönetimi" },
   { href: "/panel/admin/kredi-talepleri", label: "Kredi Talepleri" },
   { href: "/panel/admin/odeme-ayarlari", label: "Ödeme Ayarları" },
   { href: "/panel/admin/sistem", label: "Sistem & Sağlayıcı" },
@@ -179,7 +182,11 @@ export default function PanelShell({ children }: { children: ReactNode }) {
                       <div className="text-[11px] text-slate-400">Birim fiyat: ₺ {Number(me.unitPrice).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</div>
                     </>
                   )}
-                  <button onClick={logout} className="btn-outline w-full mt-3 py-2 text-sm">Çıkış Yap</button>
+                  <div className="mt-3 border-t pt-2 space-y-0.5">
+                    <a href="/panel/hesabim" className="block text-[13px] px-2 py-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-800">👤 Hesabım</a>
+                    <a href="/panel/hesabim#sifre" className="block text-[13px] px-2 py-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-800">🔑 Şifre Değiştir</a>
+                  </div>
+                  <button onClick={logout} className="btn-outline w-full mt-2 py-2 text-sm">Çıkış Yap</button>
                 </div>
               )}
             </div>
