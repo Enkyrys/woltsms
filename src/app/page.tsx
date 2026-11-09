@@ -1,201 +1,95 @@
-import type { Metadata } from "next";
+import Link from "next/link";
 import Logo from "@/components/Logo";
 import { SITE, PACKAGES, packagePriceTl, tl } from "@/lib/site";
+import { FAQ, buildJsonLd } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "WOLTSMS - Toplu SMS Paketleri",
-  description: `Toplu SMS paketleri SMS başına ₺${tl(SITE.pricePerSmsKurus / 100, 2)}. Havale ve kripto ile yükleme, API entegrasyonu, teslim raporları.`,
-};
-
+// Herkese açık ana sayfa (SEO landing). Önceden /panel/dashboard'a yönlendiriyordu;
+// yönlendirme Google'ın ana sayfayı indekslemesini engellerdi.
 const FEATURES = [
-  { t: "Havale & Kripto", d: "Kredi yüklemeyi havale veya kripto ile yapın, onaylanınca bakiyeniz hesabınıza geçer." },
-  { t: "Teslim Raporları", d: "Her mesajın durumunu panelden izleyin; iletildi, bekliyor ve başarısız kayıtlarını görün." },
-  { t: "API Entegrasyonu", d: "Kendi yazılımınızdan SMS göndermek için API anahtarı ve dokümantasyon." },
-  { t: "Toplu Gönderim", d: "Rehber ve liste yükleyerek binlerce numaraya tek siparişte gönderin." },
-];
-
-const STEPS = [
-  { n: "1", t: "Yeni üyelik açın", d: "Formu doldurun; üyeliğiniz onaylanınca panele giriş yapabilirsiniz." },
-  { n: "2", t: "Bakiyenizi yükleyin", d: "Paketinizi seçin, havale veya kripto ile yükleyin; sorularınız için Telegram veya WhatsApp'tan ulaşın." },
-  { n: "3", t: "Panelden gönderin", d: "Giriş yapın, mesajınızı yazın ve gönderin." },
-];
+  { t: "Toplu SMS Gönderimi", d: "Numaraları yapıştırın ya da Excel ile yükleyin, binlerce kişiye tek seferde SMS gönderin." },
+  { t: "Bayi SMS Paneli", d: "Alt hesap açın, müşterilerinize kredi tanımlayın, tüm gönderimleri tek panelden yönetin." },
+  { t: "SMS API Entegrasyonu", d: "REST API ile PHP, Python ve JavaScript örnekleriyle kendi yazılımınızdan SMS gönderin." },
+  { t: "Zamanlanmış SMS", d: "Kampanyalarınızı ileri tarih ve saate planlayın, otomatik gönderilsin." },
+  { t: "SMS Kısa URL", d: "Mesajlarınızdaki linkleri kısaltın, tıklama sayılarını takip edin." },
+  { t: "Anlık Raporlama", d: "İşlem geçmişi ve iletim raporlarıyla gönderimlerinizi anında görün." },
+] as const;
 
 export default function Home() {
-  const unit = tl(SITE.pricePerSmsKurus / 100, 2);
-  const mailUrl = (subject: string) => `mailto:${SITE.email}?subject=${encodeURIComponent(subject)}`;
+  const jsonLd = JSON.stringify(buildJsonLd()).replace(/</g, "\\u003c");
 
   return (
-    <div className="min-h-screen bg-white text-slate-800">
-      {/* üst bant */}
-      <div className="bg-[#0FB5A0] text-white text-center text-[13px] py-2 px-4">
-        Toplu SMS&apos;te SMS başına sadece <b>₺{unit}</b> — Telegram veya WhatsApp ile hemen ulaşın.
-      </div>
+    <main className="min-h-screen" style={{ background: "linear-gradient(180deg,#E6FAF7 0%,#F8FAFC 40%)" }}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
 
-      {/* menü */}
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-slate-100">
-        <div className="max-w-[1200px] mx-auto flex items-center justify-between px-4 lg:px-8 h-16">
-          <Logo href="/" />
-          <nav className="hidden md:flex items-center gap-7 text-[14px] font-semibold text-slate-600">
-            <a href="#paketler" className="hover:text-[#0A8F7E]">Paketler</a>
-            <a href="#ozellikler" className="hover:text-[#0A8F7E]">Özellikler</a>
-            <a href="#nasil" className="hover:text-[#0A8F7E]">Nasıl Çalışır</a>
-            <a href="#iletisim" className="hover:text-[#0A8F7E]">İletişim</a>
-          </nav>
-          <div className="flex items-center gap-2">
-            <a href={SITE.telegramUrl} target="_blank" rel="noopener noreferrer" title={`Telegram: ${SITE.telegramHandle}`}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-[13px] font-semibold text-slate-700 hover:border-[#0FB5A0] hover:text-[#0A8F7E]">
-              <span aria-hidden>✈️</span><span className="hidden lg:inline">{SITE.telegramHandle}</span><span className="lg:hidden">Telegram</span>
-            </a>
-            <a href={SITE.whatsappUrl} target="_blank" rel="noopener noreferrer" title={`WhatsApp: ${SITE.whatsappNumber}`}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-[13px] font-semibold text-slate-700 hover:border-[#0FB5A0] hover:text-[#0A8F7E]">
-              <span aria-hidden>💬</span><span className="hidden lg:inline">{SITE.whatsappNumber}</span><span className="lg:hidden">WhatsApp</span>
-            </a>
-            <a href="/kayit" className="btn-primary inline-block px-4 py-2 text-sm whitespace-nowrap">Yeni Üyelik Aç</a>
-          </div>
-        </div>
-        {/* mobil: iletişim adresleri */}
-        <div className="sm:hidden flex gap-2 px-4 pb-2 text-[12px] font-semibold">
-          <a href={SITE.telegramUrl} target="_blank" rel="noopener noreferrer" className="flex-1 text-center rounded-lg border border-slate-200 py-1.5">✈️ Telegram</a>
-          <a href={SITE.whatsappUrl} target="_blank" rel="noopener noreferrer" className="flex-1 text-center rounded-lg border border-slate-200 py-1.5">💬 WhatsApp</a>
-          <a href={`mailto:${SITE.email}`} className="flex-1 text-center rounded-lg border border-slate-200 py-1.5">✉️ E-posta</a>
-        </div>
+      <header className="max-w-6xl mx-auto flex items-center justify-between px-4 py-4">
+        <Logo href="/" />
+        <nav aria-label="Ana menü" className="flex items-center gap-4 text-sm font-semibold">
+          <a href="#ozellikler" className="hidden sm:block text-slate-600 hover:text-[#0A8F7E]">Özellikler</a>
+          <a href="#fiyatlar" className="hidden sm:block text-slate-600 hover:text-[#0A8F7E]">Fiyatlar</a>
+          <a href="#sss" className="hidden sm:block text-slate-600 hover:text-[#0A8F7E]">SSS</a>
+          <Link href="/login" className="btn-outline px-4 py-2">Giriş</Link>
+        </nav>
       </header>
 
-      {/* banner */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#0FB5A0] via-[#0CA38F] to-[#0A8F7E] text-white">
-        <div className="absolute -right-24 -top-24 w-[420px] h-[420px] rounded-full bg-white/10" aria-hidden />
-        <div className="absolute -left-16 -bottom-28 w-[320px] h-[320px] rounded-full bg-white/10" aria-hidden />
-        <div className="relative max-w-[1200px] mx-auto px-4 lg:px-8 py-16 md:py-24 grid md:grid-cols-2 gap-10 items-center">
-          <div>
-            <div className="inline-block text-[12px] font-bold tracking-wide bg-white/15 rounded-full px-3 py-1 mb-4">BAYİ SMS PANELİ</div>
-            <h1 className="text-4xl md:text-5xl font-extrabold leading-tight">
-              Toplu SMS&apos;te <span className="text-[#d9fff9]">uygun fiyat</span>, kolay yönetim
-            </h1>
-            <p className="mt-4 text-[17px] text-white/90 max-w-[520px]">
-              SMS başına <b>₺{unit}</b>. Paketini seç, bakiyeni yükle, panelden veya API ile saniyeler içinde gönder.
-            </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <a href="/kayit" className="bg-white text-[#0A8F7E] font-bold rounded-lg px-6 py-3 hover:bg-[#e6faf7] transition">Yeni Üyelik Aç</a>
-              <a href="#paketler" className="border-2 border-white/80 font-bold rounded-lg px-6 py-3 hover:bg-white/10 transition">Paketleri İncele</a>
-            </div>
-            <div className="mt-6 flex flex-wrap gap-2 text-[13px]">
-              <a href={SITE.telegramUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-full px-3 py-1.5 font-semibold">✈️ Telegram {SITE.telegramHandle}</a>
-              <a href={SITE.whatsappUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-full px-3 py-1.5 font-semibold">💬 WhatsApp {SITE.whatsappNumber}</a>
-              <a href={mailUrl("WOLTSMS bilgi talebi")} className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-full px-3 py-1.5 font-semibold break-all">✉️ {SITE.email}</a>
-            </div>
-          </div>
-          <div className="bg-white/10 border border-white/20 rounded-2xl p-6 backdrop-blur">
-            <div className="text-[13px] font-semibold text-white/80 mb-3">Fiyat örneği</div>
-            {PACKAGES.map((p) => (
-              <div key={p.name} className="flex items-center justify-between py-3 border-b border-white/15 last:border-0">
-                <div>
-                  <div className="font-bold">{p.name}</div>
-                  <div className="text-[13px] text-white/75">{tl(p.sms)} SMS</div>
-                </div>
-                <div className="text-2xl font-extrabold">₺{tl(packagePriceTl(p.sms))}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* paketler */}
-      <section id="paketler" className="max-w-[1200px] mx-auto px-4 lg:px-8 py-16 scroll-mt-16">
-        <h2 className="text-3xl font-extrabold text-center">SMS Yükleme Paketleri</h2>
-        <p className="text-center text-slate-500 mt-2">Tüm paketlerde SMS başına <b className="text-[#0A8F7E]">₺{unit}</b></p>
-        <div className="grid md:grid-cols-3 gap-6 mt-10">
-          {PACKAGES.map((p) => (
-            <div
-              key={p.name}
-              className={`rounded-2xl border p-7 flex flex-col text-center ${p.featured ? "border-[#0FB5A0] shadow-xl shadow-[#0FB5A0]/15 md:-translate-y-2" : "border-slate-200 shadow-sm"}`}
-            >
-              {p.featured && <div className="self-center -mt-11 mb-3 bg-[#0FB5A0] text-white text-[12px] font-bold rounded-full px-3 py-1">En Çok Tercih Edilen</div>}
-              <h3 className="text-lg font-bold">{p.name}</h3>
-              <div className="mt-5 text-5xl font-extrabold text-slate-900">₺{tl(packagePriceTl(p.sms))}</div>
-              <div className="mt-1 text-[15px] text-slate-500">{tl(p.sms)} SMS</div>
-              <a
-                href={SITE.telegramUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-primary mt-6 py-3 text-[15px]"
-              >
-                Satın Al
-              </a>
-              <ul className="mt-6 pt-6 border-t border-slate-100 text-left text-[14px] space-y-2.5 text-slate-600">
-                {[`₺${unit} / SMS`, "Havale & kripto ile yükleme", "Kullanıcı dostu yönetim paneli", "Teslim raporları", "API erişimi"].map((f) => (
-                  <li key={f} className="flex gap-2"><span className="text-[#0FB5A0] font-bold">✓</span>{f}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-        <p className="text-center text-[13px] text-slate-400 mt-8">
-          Farklı adetler için iletişime geçin; paket dışı talepler için özel fiyat verilebilir.
+      <section className="max-w-4xl mx-auto text-center px-4 pt-12 pb-16">
+        <h1 className="text-3xl sm:text-5xl font-extrabold leading-tight text-slate-900">
+          Toplu SMS Gönder: Ucuz Paketler, Bayi SMS Paneli ve SMS API
+        </h1>
+        <p className="mt-5 text-slate-600 text-lg">
+          WOLTSMS ile SMS başına <strong>{tl(SITE.pricePerSmsKurus / 100, 2)} TL</strong>’den başlayan fiyatlarla
+          reklam, bilgilendirme ve doğrulama (OTP) SMS’lerinizi hızlıca gönderin.
         </p>
-      </section>
-
-      {/* özellikler */}
-      <section id="ozellikler" className="bg-slate-50 py-16 scroll-mt-16">
-        <div className="max-w-[1200px] mx-auto px-4 lg:px-8">
-          <h2 className="text-3xl font-extrabold text-center">Neden WOLTSMS?</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-10">
-            {FEATURES.map((f) => (
-              <div key={f.t} className="bg-white rounded-xl border border-slate-100 p-6 shadow-sm">
-                <div className="w-10 h-10 rounded-lg bg-[#e6faf7] text-[#0FB5A0] grid place-items-center font-extrabold mb-3">✓</div>
-                <div className="font-bold">{f.t}</div>
-                <p className="text-[14px] text-slate-500 mt-1.5">{f.d}</p>
-              </div>
-            ))}
-          </div>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <Link href="/kayit" className="btn-primary px-6 py-3">Hemen Üye Ol</Link>
+          <a href={SITE.whatsappUrl} className="btn-outline px-6 py-3" rel="noopener noreferrer">WhatsApp’tan Yazın</a>
         </div>
       </section>
 
-      {/* nasıl çalışır */}
-      <section id="nasil" className="max-w-[1200px] mx-auto px-4 lg:px-8 py-16 scroll-mt-16">
-        <h2 className="text-3xl font-extrabold text-center">Nasıl Çalışır?</h2>
-        <div className="grid md:grid-cols-3 gap-6 mt-10">
-          {STEPS.map((s) => (
-            <div key={s.n} className="text-center">
-              <div className="w-12 h-12 mx-auto rounded-full bg-[#0FB5A0] text-white grid place-items-center text-xl font-extrabold">{s.n}</div>
-              <div className="font-bold mt-4">{s.t}</div>
-              <p className="text-[14px] text-slate-500 mt-1">{s.d}</p>
+      <section id="ozellikler" className="max-w-6xl mx-auto px-4 pb-16">
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-center mb-8">Toplu SMS Paneli Özellikleri</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {FEATURES.map((f) => (
+            <article key={f.t} className="card !p-6">
+              <h3 className="font-bold text-lg text-[#0A8F7E] mb-2">{f.t}</h3>
+              <p className="text-sm text-slate-600">{f.d}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="fiyatlar" className="max-w-6xl mx-auto px-4 pb-16">
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-center mb-2">Toplu SMS Paketleri ve Fiyatları</h2>
+        <p className="text-center text-slate-500 mb-8">Birim fiyat: {tl(SITE.pricePerSmsKurus / 100, 2)} TL / SMS</p>
+        <div className="grid gap-4 md:grid-cols-3">
+          {PACKAGES.map((p) => (
+            <div key={p.name} className={`card !p-6 text-center ${p.featured ? "ring-2 ring-[#0FB5A0]" : ""}`}>
+              <h3 className="font-bold text-lg">{p.name}</h3>
+              <div className="text-3xl font-extrabold text-[#0FB5A0] my-3">{tl(p.sms)} SMS</div>
+              <div className="text-slate-600 mb-4">{tl(packagePriceTl(p.sms))} TL</div>
+              <Link href="/kayit" className="btn-primary px-5 py-2 inline-block">Satın Al</Link>
             </div>
           ))}
         </div>
       </section>
 
-      {/* iletişim */}
-      <section id="iletisim" className="bg-gradient-to-br from-[#0FB5A0] to-[#0A8F7E] text-white py-16 scroll-mt-16">
-        <div className="max-w-[900px] mx-auto px-4 lg:px-8 text-center">
-          <h2 className="text-3xl font-extrabold">İletişim</h2>
-          <p className="mt-2 text-white/85">Paket satın almak, özel fiyat almak veya üyelik onayınızı hızlandırmak için bize yazın.</p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-8 text-left">
-            <a href={SITE.telegramUrl} target="_blank" rel="noopener noreferrer" className="bg-white text-slate-800 rounded-xl p-6 hover:shadow-xl transition block">
-              <div className="text-[12px] font-bold text-[#0FB5A0] tracking-wide">TELEGRAM</div>
-              <div className="text-xl font-extrabold mt-1">{SITE.telegramHandle}</div>
-              <div className="text-[13px] text-slate-500 mt-1">Hızlı destek ve sipariş için</div>
-            </a>
-            <a href={SITE.whatsappUrl} target="_blank" rel="noopener noreferrer" className="bg-white text-slate-800 rounded-xl p-6 hover:shadow-xl transition block">
-              <div className="text-[12px] font-bold text-[#0FB5A0] tracking-wide">WHATSAPP</div>
-              <div className="text-xl font-extrabold mt-1">{SITE.whatsappNumber}</div>
-              <div className="text-[13px] text-slate-500 mt-1">Mesaj göndermek için dokunun</div>
-            </a>
-            <a href={mailUrl("WOLTSMS bilgi talebi")} className="bg-white text-slate-800 rounded-xl p-6 hover:shadow-xl transition block">
-              <div className="text-[12px] font-bold text-[#0FB5A0] tracking-wide">E-POSTA</div>
-              <div className="text-lg font-extrabold mt-1 [overflow-wrap:anywhere]">{SITE.email}</div>
-              <div className="text-[13px] text-slate-500 mt-1">Teklif ve kurumsal talepler için</div>
-            </a>
-          </div>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <a href="/kayit" className="inline-block bg-white text-[#0A8F7E] font-bold rounded-lg px-7 py-3 hover:bg-[#e6faf7] transition">Yeni Üyelik Aç</a>
-            <a href="/login" className="inline-block border-2 border-white/80 font-bold rounded-lg px-7 py-3 hover:bg-white/10 transition">Bayi Girişi</a>
-          </div>
+      <section id="sss" className="max-w-3xl mx-auto px-4 pb-16">
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-center mb-8">Sık Sorulan Sorular</h2>
+        <div className="space-y-3">
+          {FAQ.map((f) => (
+            <details key={f.q} className="card !p-4">
+              <summary className="font-semibold cursor-pointer">{f.q}</summary>
+              <p className="mt-2 text-sm text-slate-600">{f.a}</p>
+            </details>
+          ))}
         </div>
       </section>
 
-      <footer className="py-6 text-center text-[13px] text-slate-400">
-        © {new Date().getFullYear()} {SITE.name}. Tüm hakları saklıdır. · <a href="/login" className="hover:text-[#0A8F7E]">Bayi girişi</a>
+      <footer className="border-t border-slate-200 py-8 text-center text-sm text-slate-500">
+        <p>© {new Date().getFullYear()} {SITE.name} · Toplu SMS ve Bayi SMS Paneli</p>
+        <p className="mt-1">
+          <a href={SITE.telegramUrl} rel="noopener noreferrer">Telegram</a> · <a href={`mailto:${SITE.email}`}>{SITE.email}</a>
+        </p>
       </footer>
-    </div>
+    </main>
   );
 }
