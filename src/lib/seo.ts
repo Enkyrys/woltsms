@@ -76,6 +76,7 @@ export function buildJsonLd() {
     url: SITE_URL,
     logo: `${SITE_URL}/favicon.svg`,
     email: SITE.email,
+    sameAs: [SITE.telegramUrl],
     contactPoint: [
       {
         "@type": "ContactPoint",

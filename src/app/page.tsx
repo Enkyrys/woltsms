@@ -41,7 +41,8 @@ export default function Home() {
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link href="/kayit" className="btn-primary px-6 py-3">Hemen Üye Ol</Link>
-          <a href={SITE.whatsappUrl} className="btn-outline px-6 py-3" rel="noopener noreferrer">WhatsApp’tan Yazın</a>
+          <a href={SITE.whatsappUrl} className="btn-green px-6 py-3" target="_blank" rel="noopener noreferrer">WhatsApp: {SITE.whatsappNumber}</a>
+          <a href={SITE.telegramUrl} className="btn-outline px-6 py-3" target="_blank" rel="noopener noreferrer">Telegram: {SITE.telegramHandle}</a>
         </div>
       </section>
 
@@ -84,12 +85,32 @@ export default function Home() {
         </div>
       </section>
 
+      <section id="iletisim" className="max-w-3xl mx-auto px-4 pb-16">
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-center mb-2">İletişim</h2>
+        <p className="text-center text-slate-500 mb-8">Fiyat teklifi, bayilik ve destek için bize yazın.</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <a href={SITE.whatsappUrl} target="_blank" rel="noopener noreferrer" className="card !p-6 text-center hover:ring-2 hover:ring-[#22c55e]">
+            <h3 className="font-bold text-lg mb-1">WhatsApp</h3>
+            <p className="text-slate-600">{SITE.whatsappNumber}</p>
+          </a>
+          <a href={SITE.telegramUrl} target="_blank" rel="noopener noreferrer" className="card !p-6 text-center hover:ring-2 hover:ring-[#0FB5A0]">
+            <h3 className="font-bold text-lg mb-1">Telegram</h3>
+            <p className="text-slate-600">{SITE.telegramHandle}</p>
+          </a>
+        </div>
+      </section>
+
       <footer className="border-t border-slate-200 py-8 text-center text-sm text-slate-500">
         <p>© {new Date().getFullYear()} {SITE.name} · Toplu SMS ve Bayi SMS Paneli</p>
         <p className="mt-1">
-          <a href={SITE.telegramUrl} rel="noopener noreferrer">Telegram</a> · <a href={`mailto:${SITE.email}`}>{SITE.email}</a>
+          <a href={SITE.telegramUrl} rel="noopener noreferrer">Telegram {SITE.telegramHandle}</a> · <a href={SITE.whatsappUrl} rel="noopener noreferrer">WhatsApp {SITE.whatsappNumber}</a> · <a href={`mailto:${SITE.email}`}>{SITE.email}</a>
         </p>
       </footer>
+
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+        <a href={SITE.whatsappUrl} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp ile yazın" className="btn-green px-4 py-3 shadow-lg text-sm">WhatsApp</a>
+        <a href={SITE.telegramUrl} target="_blank" rel="noopener noreferrer" aria-label="Telegram ile yazın" className="btn-primary px-4 py-3 shadow-lg text-sm">Telegram</a>
+      </div>
     </main>
   );
 }
