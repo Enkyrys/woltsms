@@ -26,6 +26,7 @@ class Query {
   gt(c: string, v: unknown) { this.filters.push(`${ident(c)} > ${lit(v)}`); return this; }
   gte(c: string, v: unknown) { this.filters.push(`${ident(c)} >= ${lit(v)}`); return this; }
   lt(c: string, v: unknown) { this.filters.push(`${ident(c)} < ${lit(v)}`); return this; }
+  lte(c: string, v: unknown) { this.filters.push(`${ident(c)} <= ${lit(v)}`); return this; }
     is(c: string, v: unknown) { this.filters.push(`${ident(c)} is ${v === null ? "null" : String(v)}`); return this; }
   in(c: string, vs: unknown[]) { this.filters.push(vs.length ? `${ident(c)} in (${vs.map(lit).join(",")})` : "false"); return this; }
   order(c: string, o?: { ascending?: boolean }) { this.orderBy = ` order by ${ident(c)} ${o?.ascending === false ? "desc" : "asc"}`; return this; }
@@ -65,6 +66,7 @@ class Query {
 }
 
 const SETOF = new Set(["rpc_claim_send_batch"]);
+const ARRAY_ARGS = new Set(["p_order_ids"]);
 
 // Supabase Auth Admin API taklidi: auth.users üzerinde, şifreler pgcrypto (bcrypt) ile
 type AuthUser = { id: string; email: string; user_metadata: Record<string, unknown> };
@@ -97,7 +99,10 @@ function makeClient(asUser: boolean) {
     from: (t: string) => new Query(t),
     rpc: async (name: string, args: Record<string, unknown> = {}) => {
       try {
-        const a = Object.entries(args).map(([k, v]) => `${k} => ${lit(v)}`).join(", ");
+        // uuid[] / text[] parametreleri (PostgREST JSON diziyi Postgres dizisine çevirir)
+        const a = Object.entries(args)
+          .map(([k, v]) => `${k} => ${ARRAY_ARGS.has(k) && Array.isArray(v) ? `${lit(`{${v.join(",")}}`)}` : lit(v)}`)
+          .join(", ");
         // kullanıcı istemcisi: auth.uid() = oturumdaki kullanıcı (testte globalThis.__session)
         const uid = asUser ? ((globalThis as { __session?: { id: string } | null }).__session?.id ?? "") : "";
         const out = SETOF.has(name)

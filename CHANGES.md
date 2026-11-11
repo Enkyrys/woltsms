@@ -1,3 +1,16 @@
+# Değişiklik özeti — Panel SMS'leri 5 dk gecikme, API kapalıyken otomatik onay, toplu Gönder, API Aç/Kapat
+
+| Dosya | Değişiklik |
+|---|---|
+| `supabase/migrations/0021_panel_delay_auto_approve.sql` | YENİ — İşletme panelinden "hemen gönder" kampanyaları `panel_send_delay_minutes` (vars. **5 dk**) "Gönderim Bekliyor"da kalır, sonra sağlayıcıya gider (ileri tarihli ve API/v1 siparişlerine ek gecikme yok). API kapalıyken (aktif sağlayıcı yok) bekleyen kampanyalar gönderim zamanından `auto_approve_minutes` (vars. **5 dk**) sonra otomatik **Gönderildi** olur (mesajlar İletildi, bakiye kesinleşir, not + denetim kaydı `order.auto_approve`). `rpc_manual_deliver_orders` (toplu onay; uygun olmayanlar atlanır). Tek onay `rpc_manual_deliver_order` aynı çekirdeği kullanır, davranışı aynı |
+| `src/lib/services.ts` | Worker her dakika: API kapalıysa `rpc_auto_approve_pending`; `manualDeliverOrders` (toplu) |
+| `src/app/api/panel/admin/orders/deliver/route.ts` | `orderId` (tek) + `orderIds` (seçilenler) + `all` (filtreye uyan tüm bekleyenler) |
+| `src/app/api/panel/admin/provider-switch/route.ts` | YENİ — API Aç / API Kapat: kapatınca aktif sağlayıcı hatırlanır (`last_active_provider`), açınca geri gelir; denetim kaydı `provider.api_off` / `provider.api_on` |
+| `src/app/api/panel/orders/route.ts` | Listede admin için `meta.deliverableTotal` ("Hepsi" sayısı); kampanya oluşturma yanıtı "5 dakika sonra gönderilecek" |
+| `src/app/panel/siparisler/page.tsx` | Admin: başlıkta seçim kutusu + menü (**Hepsi / Sayfa / Hiçbiri**), satır işaretleme, **Gönder (N)** ile bekleyenler Gönderildi; API durum kartı ve **API Aç / API Kapat** düğmesi; liste 30 sn'de bir yenilenir |
+| `src/app/panel/admin/sistem/page.tsx`, `admin/settings` | Gönderim Kuralları: iki süre ayarı (0–1440 dk) |
+| `tests/e2e-local/` | `delay-approve-scenarios.sql` + `e2e-delay.mts` (gerçek route'lar + worker); eski "hemen gönder" testleri gecikme 0 ile çalışır |
+
 # Değişiklik özeti — Ana sayfada iletişim adresleri + Yeni Üyelik Aç
 
 | Dosya | Değişiklik |

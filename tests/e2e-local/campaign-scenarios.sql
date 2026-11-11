@@ -1,4 +1,6 @@
 set timezone = 'Asia/Tbilisi';
+-- 0021: bu senaryo "hemen gönder" yolunu sınar; panel gecikmesi (5 dk) delay-approve-scenarios.sql içinde test edilir
+update public.system_settings set value = '0' where key = 'panel_send_delay_minutes';
 -- test bayisi
 insert into auth.users(id,email) values ('11111111-1111-1111-1111-111111111111','bayi@test');
 insert into public.profiles(id, username, name, role_id) select '11111111-1111-1111-1111-111111111111','bayi1','Test Bayi', id from roles where name='Consumer';

@@ -31,6 +31,8 @@ const U = "22222222-2222-2222-2222-222222222222";
 q1(`insert into auth.users(id,email) values ('${U}','e2e@test') on conflict do nothing`);
 q1(`insert into public.profiles(id, username, name, role_id) select '${U}','e2ebayi','E2E Bayi', id from roles where name='Consumer' on conflict do nothing`);
 q1(`insert into public.wallets(user_id,balance,reserved) values ('${U}',100,0) on conflict (user_id) do update set balance=100, reserved=0`);
+// bu test "hemen gönder" yolunu sınar; panel gecikmesi (0021) delay-approve-scenarios.sql'de test edilir
+q1(`update system_settings set value='0' where key='panel_send_delay_minutes'`);
 q1(`update provider_settings set is_active=false`);
 q1(`insert into provider_settings(provider, base_url, sender_id, credentials_encrypted, is_active) values ('gatum','https://enkyrys.test/v1','WOLTSMS', '${encrypt(JSON.stringify({ accessToken: "test-token" }))}', true)
     on conflict (provider) do update set base_url=excluded.base_url, credentials_encrypted=excluded.credentials_encrypted, is_active=true`);
