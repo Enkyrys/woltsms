@@ -425,6 +425,12 @@ export async function POST(req: Request) {
       if (h === null) return badRequest("Saat biçimi geçersiz. Örnek: 24:00, 23:59, 10:00");
       value = String(h);
     }
+    // dakika ayarları (0021): 0..1440 tam sayı
+    if (key === "panel_send_delay_minutes" || key === "auto_approve_minutes") {
+      const t = value.trim();
+      if (!/^\d{1,4}$/.test(t) || Number(t) > 1440) return badRequest("Dakika 0 ile 1440 arasında tam sayı olmalı.");
+      value = String(Number(t));
+    }
     await admin
       .from("system_settings")
       .upsert({ key, value }, { onConflict: "key" });

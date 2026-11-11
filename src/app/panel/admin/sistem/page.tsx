@@ -425,6 +425,8 @@ export default function SistemPage() {
             <Field label="Sipariş başına azami alıcı"><input className="input" value={sys.max_recipients_per_order || "5000"} onChange={(e) => setSys({ ...sys, max_recipients_per_order: e.target.value })} /></Field>
             <Field label="Worker parti boyutu"><input className="input" value={sys.worker_batch_size || "250"} onChange={(e) => setSys({ ...sys, worker_batch_size: e.target.value })} /></Field>
             <Field label="Azami deneme (sağlayıcı)"><input className="input" value={sys.send_max_attempts || "3"} onChange={(e) => setSys({ ...sys, send_max_attempts: e.target.value })} /></Field>
+            <Field label="Panel gönderim gecikmesi (dk, API açıkken)"><input className="input" inputMode="numeric" value={sys.panel_send_delay_minutes ?? "5"} onChange={(e) => setSys({ ...sys, panel_send_delay_minutes: e.target.value })} /></Field>
+            <Field label="Otomatik onay süresi (dk, API kapalıyken)"><input className="input" inputMode="numeric" value={sys.auto_approve_minutes ?? "5"} onChange={(e) => setSys({ ...sys, auto_approve_minutes: e.target.value })} /></Field>
           </div>
           <button onClick={saveSys} disabled={sysSaving} className="btn-primary px-6 py-2.5 text-sm mt-2 disabled:opacity-50">{sysSaving ? "Kaydediliyor..." : "Kaydet"}</button>
           <p className="text-[12px] text-slate-500 mt-3">
@@ -432,6 +434,12 @@ export default function SistemPage() {
             aynı (ya da 0/24) ise gönderim gün boyu açıktır; pencere dışında kalan gönderimler iptal edilir ve rezerv iade edilir.
             Kullanıcının kendi saatiyle seçtiği gönderim zamanı sağlayıcıya UTC (ENKYRYS saati) olarak iletilir; ör. UTC+4'te 10:02 → 06:02. Worker pg_cron ile her dakika
             <span className="font-mono"> POST /api/internal/worker</span> ucunu CRON_SECRET ile çağırır.
+          </p>
+          <p className="text-[12px] text-slate-500 mt-2">
+            <b>Panel gönderim gecikmesi:</b> işletme panelinden &quot;hemen gönder&quot; ile oluşturulan kampanyalar bu kadar dakika
+            &quot;Gönderim Bekliyor&quot;da kalır, sonra sağlayıcıya gider (0 = hemen). <b>Otomatik onay süresi:</b> API kapalıyken
+            bekleyen kampanyalar bu süre dolunca otomatik &quot;Gönderildi&quot; olur (0 = kapalı; yalnız Kampanyalar listesinden
+            seçip Gönder ile onaylanır). API&apos;yi Kampanyalar sayfasındaki <b>API Aç / API Kapat</b> düğmesiyle açıp kapatabilirsiniz.
           </p>
         </Card>
       )}

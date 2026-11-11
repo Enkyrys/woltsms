@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PageTitle, Pagination, StatusBadge, OrderStatusBadge, ORDER_STATUS_LABELS, Empty, Modal } from "@/components/ui";
 import CampaignEditModal, { type EditableCampaign } from "@/components/CampaignEditModal";
 
@@ -33,6 +33,14 @@ type Detail = {
   attempts: { id: number; recipient: string; attempt: number; ok: boolean; outcome: string; httpStatus: number | null; errorCode: string | null; response: unknown; createdAt: string }[];
 };
 
+type ApiState = {
+  active: boolean; provider: string | null; lastProvider: string | null;
+  sendDelayMinutes: number; autoApproveMinutes: number; pendingCount: number;
+};
+
+// "Gönderildi" yapılabilecek (bekleyen) durumlar
+const DELIVERABLE = ["pending", "scheduled", "processing"];
+
 const OUTCOME: Record<string, string> = { sent: "Başarılı", retry: "Yeniden denenecek", failed: "Başarısız", ignored: "Tekrar (yok sayıldı)" };
 
 export default function SiparislerPage() {
@@ -49,32 +57,139 @@ export default function SiparislerPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
 
+  // admin: seçim (tek tek / sayfa / hepsi) + toplu "Gönder"
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [allMode, setAllMode] = useState(false); // filtreye uyan TÜM bekleyen kampanyalar (tüm sayfalar)
+  const [deliverableTotal, setDeliverableTotal] = useState(0);
+  const [selMenu, setSelMenu] = useState(false);
+  const selMenuRef = useRef<HTMLTableCellElement | null>(null);
+
+  // admin: sağlayıcı API'si aç / kapat
+  const [api, setApi] = useState<ApiState | null>(null);
+  const [apiBusy, setApiBusy] = useState(false);
+
+  // açık filtre değerleri (otomatik yenileme ve "Hepsi" gönderimi aynı filtreyi kullanır)
+  const view = useRef({ page: 1, perPage: 10, status: "", q: "" });
+
   const load = (p = page, pp = perPage, st = status, q = search) => {
+    const filterChanged = st !== view.current.status || q !== view.current.q;
+    view.current = { page: p, perPage: pp, status: st, q };
+    if (filterChanged) { setSelected(new Set()); setAllMode(false); }
     fetch(`/api/panel/orders?page=${p}&perPage=${pp}&status=${encodeURIComponent(st)}&q=${encodeURIComponent(q)}`).then(async (r) => {
       const j = await r.json();
-      if (j.success) { setRows(j.data); setTotal(j.meta.total); setPage(j.meta.page); setPerPage(j.meta.perPage); }
+      if (j.success) {
+        setRows(j.data); setTotal(j.meta.total); setPage(j.meta.page); setPerPage(j.meta.perPage);
+        setDeliverableTotal(Number(j.meta.deliverableTotal ?? 0));
+      }
+    });
+  };
+  const loadApi = () => {
+    fetch("/api/panel/admin/provider-switch").then(async (r) => {
+      if (!r.ok) return;
+      const j = await r.json().catch(() => null);
+      if (j?.success) setApi(j.data);
     });
   };
   useEffect(() => {
     load(1, 10, "", "");
-    fetch("/api/auth/me").then(async (r) => { if (r.ok) { const j = await r.json(); setIsAdmin(!!j.data?.isAdmin); } });
+    fetch("/api/auth/me").then(async (r) => {
+      if (r.ok) { const j = await r.json(); const adm = !!j.data?.isAdmin; setIsAdmin(adm); if (adm) loadApi(); }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sağlayıcı API'si pasifken bekleyen siparişi manuel olarak "iletildi" onayla (admin)
-  const deliver = async (id: string) => {
-    if (!confirm("Bu kampanya iletildi olarak onaylansın mı? Mesajlar 'İletildi' işaretlenir ve bakiye kesinleşir.")) return;
+  // admin: 5 dakikalık gecikme / otomatik onay arka planda ilerler → liste 30 sn'de bir tazelenir
+  useEffect(() => {
+    if (!isAdmin) return;
+    const t = setInterval(() => {
+      if (document.hidden) return;
+      const v = view.current;
+      load(v.page, v.perPage, v.status, v.q);
+      loadApi();
+    }, 30_000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
+  // seçim menüsü dışına tıklanınca kapanır
+  useEffect(() => {
+    if (!selMenu) return;
+    const close = (e: MouseEvent) => { if (!selMenuRef.current?.contains(e.target as Node)) setSelMenu(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [selMenu]);
+
+  const canDeliver = (st: string) => isAdmin && DELIVERABLE.includes(st);
+
+  const pageIds = rows.filter((r) => canDeliver(r.status)).map((r) => r.id);
+  const pageAllSelected = pageIds.length > 0 && pageIds.every((id) => allMode || selected.has(id));
+  const pageSomeSelected = !pageAllSelected && pageIds.some((id) => allMode || selected.has(id));
+  const selectedCount = allMode ? deliverableTotal : selected.size;
+  const headerBox = useRef<HTMLInputElement | null>(null);
+  useEffect(() => { if (headerBox.current) headerBox.current.indeterminate = pageSomeSelected; }, [pageSomeSelected]);
+
+  const selectPage = (on: boolean) => {
+    setAllMode(false);
+    setSelected((prev) => {
+      const next = new Set(allMode ? pageIds : prev);
+      for (const id of pageIds) { if (on) next.add(id); else next.delete(id); }
+      return next;
+    });
+  };
+  const selectAll = () => { setAllMode(true); setSelected(new Set()); };
+  const clearSelection = () => { setAllMode(false); setSelected(new Set()); };
+  const toggleOne = (id: string) => {
+    if (allMode) {
+      // "Hepsi" modundan tek kayıt çıkarılırsa: bu sayfadaki diğerleri seçili kalır
+      setAllMode(false);
+      setSelected(new Set(pageIds.filter((x) => x !== id)));
+      return;
+    }
+    setSelected((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  };
+
+  // Bekleyen kampanyaları "Gönderildi" yap (admin): tek kampanya, seçilenler ya da hepsi
+  const sendDeliver = async (body: Record<string, unknown>, count: number) => {
+    const text = count === 1
+      ? "Bu kampanya Gönderildi olarak işaretlensin mi? Mesajlar 'İletildi' olur ve bakiye kesinleşir."
+      : `${count} kampanya Gönderildi olarak işaretlensin mi? Mesajlar 'İletildi' olur ve bakiye kesinleşir.`;
+    if (!confirm(text)) return;
     setBusy(true);
     const r = await fetch("/api/panel/admin/orders/deliver", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: id }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
     const j = await r.json().catch(() => ({}));
     setBusy(false);
-    setNotice(j.success ? `Kampanya iletildi olarak onaylandı (${j.data?.messages ?? 0} mesaj).` : (j.message || "İşlem başarısız."));
+    setNotice(j.message || (j.success ? "Kampanyalar gönderildi olarak onaylandı." : "İşlem başarısız."));
+    if (j.success) clearSelection();
     setDetail(null);
     load(page, perPage, status);
+    loadApi();
   };
-  const canDeliver = (st: string) => isAdmin && (st === "pending" || st === "scheduled" || st === "processing");
+  const deliver = (id: string) => sendDeliver({ orderId: id }, 1);
+  const deliverSelected = () => {
+    if (selectedCount === 0) return;
+    if (allMode) sendDeliver({ all: true, status: view.current.status, q: view.current.q }, deliverableTotal);
+    else sendDeliver({ orderIds: [...selected] }, selected.size);
+  };
+
+  // API aç / kapat
+  const toggleApi = async () => {
+    if (!api) return;
+    const on = !api.active;
+    const text = on
+      ? `API açılsın mı? Bekleyen kampanyalar sağlayıcıya (${api.lastProvider || "kayıtlı sağlayıcı"}) gönderilmeye başlar.`
+      : `API kapatılsın mı? Yeni kampanyalar sağlayıcıya gitmez; bekleyenler ${api.autoApproveMinutes} dakika sonra otomatik Gönderildi olur.`;
+    if (!confirm(text)) return;
+    setApiBusy(true);
+    const r = await fetch("/api/panel/admin/provider-switch", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setApiBusy(false);
+    if (j.success && j.data) setApi(j.data);
+    setNotice(j.message || (j.success ? "Güncellendi." : "İşlem başarısız."));
+  };
 
   const open = async (id: string) => {
     const r = await fetch(`/api/panel/orders?id=${id}`);
@@ -113,15 +228,89 @@ export default function SiparislerPage() {
           <button className="btn-primary px-4 py-2 text-[13px]" onClick={() => load(1, perPage, status, search)}>Ara</button>
         </div>
       )}
+      {isAdmin && api && (
+        <div className={`card mb-3 flex items-center justify-between gap-3 flex-wrap border-l-4 ${api.active ? "border-l-[#0FB5A0]" : "border-l-red-400"}`}>
+          <div className="text-sm">
+            <div className="flex items-center gap-2 font-bold">
+              <span className={`inline-block w-2.5 h-2.5 rounded-full ${api.active ? "bg-[#0FB5A0]" : "bg-red-500"}`} />
+              {api.active ? `API AÇIK${api.provider ? ` · ${api.provider}` : ""}` : "API KAPALI"}
+            </div>
+            <div className="text-[12px] text-slate-500 mt-0.5">
+              {api.active
+                ? api.sendDelayMinutes > 0
+                  ? `Panelden gelen SMS'ler ${api.sendDelayMinutes} dakika sonra sağlayıcıya gönderilir.`
+                  : "Panelden gelen SMS'ler hemen sağlayıcıya gönderilir."
+                : api.autoApproveMinutes > 0
+                  ? `Bekleyen SMS'ler ${api.autoApproveMinutes} dakika sonra otomatik Gönderildi olur. Hemen onaylamak için seçip Gönder'e basın.`
+                  : "Bekleyen SMS'ler listeden seçilip Gönder ile onaylanır (otomatik onay kapalı)."}
+              {api.pendingCount > 0 && <> · <b>{api.pendingCount}</b> bekleyen kampanya</>}
+            </div>
+          </div>
+          <button disabled={apiBusy} onClick={toggleApi}
+            className={`${api.active ? "btn-red" : "btn-primary"} px-5 py-2 text-[13px] disabled:opacity-50`}>
+            {apiBusy ? "…" : api.active ? "API Kapat" : "API Aç"}
+          </button>
+        </div>
+      )}
+      {isAdmin && (selectedCount > 0 || pageAllSelected) && (
+        <div className="card mb-3 flex items-center gap-3 flex-wrap text-sm bg-[#E6FAF7]">
+          <span>
+            {allMode
+              ? <>Filtreye uyan <b>tüm {deliverableTotal}</b> bekleyen kampanya seçildi.</>
+              : <><b>{selected.size}</b> kampanya seçildi.</>}
+          </span>
+          {!allMode && pageAllSelected && deliverableTotal > selected.size && (
+            <button className="text-[#0FB5A0] font-bold text-[13px] underline" onClick={selectAll}>
+              Bekleyen {deliverableTotal} kampanyanın hepsini seç
+            </button>
+          )}
+          <span className="flex-1" />
+          <button className="btn-outline text-[13px] px-3 py-1.5" onClick={clearSelection}>Seçimi Temizle</button>
+          <button disabled={busy || selectedCount === 0} className="btn-primary text-[13px] px-5 py-1.5 disabled:opacity-50" onClick={deliverSelected}>
+            {busy ? "Gönderiliyor…" : `Gönder (${selectedCount})`}
+          </button>
+        </div>
+      )}
       <div className="card !p-0 overflow-x-auto">
         <table className="w-full table-head">
           <thead><tr className="text-left border-b">
+            {isAdmin && (
+              <th className="!w-[64px] relative" ref={selMenuRef}>
+                <span className="flex items-center gap-1">
+                  <input ref={headerBox} type="checkbox" className="w-4 h-4 accent-[#0FB5A0] cursor-pointer" aria-label="Sayfadaki bekleyen kampanyaları seç"
+                    title="Sayfadaki bekleyen kampanyaları seç" disabled={pageIds.length === 0 && deliverableTotal === 0}
+                    checked={pageAllSelected} onChange={(e) => selectPage(e.target.checked)} />
+                  <button type="button" className="text-[11px] text-slate-500 hover:text-[#0FB5A0] px-0.5" aria-label="Seçim seçenekleri"
+                    onClick={() => setSelMenu((v) => !v)}>▾</button>
+                </span>
+                {selMenu && (
+                  <div className="absolute left-2 top-full mt-1 z-20 bg-white dark:bg-slate-900 border rounded-lg shadow-lg py-1 min-w-[220px] text-[13px] font-normal normal-case">
+                    <button className="block w-full text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40" disabled={deliverableTotal === 0}
+                      onClick={() => { selectAll(); setSelMenu(false); }}>Hepsi ({deliverableTotal} bekleyen)</button>
+                    <button className="block w-full text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40" disabled={pageIds.length === 0}
+                      onClick={() => { selectPage(true); setSelMenu(false); }}>Sayfa ({pageIds.length} bekleyen)</button>
+                    <button className="block w-full text-left px-3 py-1.5 hover:bg-slate-50"
+                      onClick={() => { clearSelection(); setSelMenu(false); }}>Hiçbiri</button>
+                  </div>
+                )}
+              </th>
+            )}
             <th>Kampanya</th><th>Durum</th><th>Başarılı / Toplam</th><th>Oluşturan</th><th>Planlanan Gönderim</th><th title="ENKYRYS'e gönderim saati (UTC)">ENKYRYS Saati (UTC)</th><th className="sorted-col">Oluşturulma ⤓</th>{isAdmin && <th>İşlem</th>}
           </tr></thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={isAdmin ? 8 : 7}><Empty text="Kampanya bulunamadı." /></td></tr>}
-            {rows.map((r) => (
-              <tr key={r.id} className="table-row cursor-pointer" onClick={() => open(r.id)}>
+            {rows.length === 0 && <tr><td colSpan={isAdmin ? 9 : 7}><Empty text="Kampanya bulunamadı." /></td></tr>}
+            {rows.map((r) => {
+              const sel = canDeliver(r.status) && (allMode || selected.has(r.id));
+              return (
+              <tr key={r.id} className={`table-row cursor-pointer ${sel ? "!bg-[#E6FAF7]" : ""}`} onClick={() => open(r.id)}>
+                {isAdmin && (
+                  <td onClick={(e) => e.stopPropagation()}>
+                    {canDeliver(r.status) && (
+                      <input type="checkbox" className="w-4 h-4 accent-[#0FB5A0] cursor-pointer" aria-label="Kampanyayı işaretle"
+                        checked={sel} onChange={() => toggleOne(r.id)} />
+                    )}
+                  </td>
+                )}
                 <td>
                   <div className="font-bold text-[#0FB5A0]">{r.name || `#${r.id.slice(0, 8)}`}</div>
                   <div className="text-[11px] text-slate-500 truncate max-w-[220px]">{r.message}</div>
@@ -137,11 +326,12 @@ export default function SiparislerPage() {
                 <td>{fmtLocal(r.createdAt)}</td>
                 {isAdmin && (
                   <td onClick={(e) => e.stopPropagation()}>
-                    {canDeliver(r.status) && <button disabled={busy} className="btn-outline text-[12px] px-2.5 py-1" onClick={() => deliver(r.id)}>İletildi Onayla</button>}
+                    {canDeliver(r.status) && <button disabled={busy} className="btn-outline text-[12px] px-2.5 py-1" onClick={() => deliver(r.id)}>Gönder</button>}
                   </td>
                 )}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         <Pagination page={page} perPage={perPage} total={total} onChange={(p, pp) => load(p, pp, status)} />
@@ -173,7 +363,7 @@ export default function SiparislerPage() {
               <button className="btn-primary text-[12px] px-3 py-1.5" onClick={() => setEditing({ id: o.id, name: o.name, message: o.message, scheduledAt: o.scheduledAt })}>Düzenle</button>
             )}
             {canDeliver(o.status) && (
-              <button disabled={busy} className="btn-outline text-[12px] px-3 py-1.5" onClick={() => deliver(o.id)}>İletildi Olarak Onayla</button>
+              <button disabled={busy} className="btn-outline text-[12px] px-3 py-1.5" onClick={() => deliver(o.id)}>Gönderildi Olarak Onayla</button>
             )}
             {(o.status === "scheduled" || o.status === "pending" || o.status === "draft") && (
               <button className="btn-red text-[12px] px-3 py-1.5" onClick={() => cancel(o.id)}>İptal Et</button>

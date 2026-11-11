@@ -165,10 +165,25 @@ export async function GET(req: Request) {
   const statuses = statusParam.split(",").map((x) => x.trim()).filter(Boolean);
   if (statuses.length === 1) q = q.eq("status", statuses[0]);
   else if (statuses.length > 1) q = q.in("status", statuses);
-  if (search) q = q.or(`name.ilike.%${search.replace(/[%,()]/g, "")}%,message.ilike.%${search.replace(/[%,()]/g, "")}%`);
-  const { count, data } = await q
-    .order(sort, { ascending: sort === "scheduled_at" })
-    .range((page - 1) * perPage, page * perPage - 1);
+  const safeSearch = search.replace(/[%,()]/g, "");
+  if (search) q = q.or(`name.ilike.%${safeSearch}%,message.ilike.%${safeSearch}%`);
+
+  // admin: filtreye uyan "Gönderildi" yapılabilir (bekleyen) kampanya sayısı → "Hepsini seç"
+  const DELIVERABLE = ["pending", "scheduled", "processing"];
+  const deliverableStatuses = statuses.length ? DELIVERABLE.filter((x) => statuses.includes(x)) : DELIVERABLE;
+  const deliverableCountPromise =
+    s.isAdmin && deliverableStatuses.length
+      ? (() => {
+          let dq = admin.from("orders").select("id", { head: true, count: "exact" }).in("status", deliverableStatuses);
+          if (search) dq = dq.or(`name.ilike.%${safeSearch}%,message.ilike.%${safeSearch}%`);
+          return Promise.resolve(dq).then((r) => r.count ?? 0);
+        })()
+      : Promise.resolve(0);
+
+  const [{ count, data }, deliverableTotal] = await Promise.all([
+    q.order(sort, { ascending: sort === "scheduled_at" }).range((page - 1) * perPage, page * perPage - 1),
+    deliverableCountPromise,
+  ]);
 
   const rows = (data ?? []).map((o) => ({
     id: o.id,
@@ -207,7 +222,7 @@ export async function GET(req: Request) {
     code: 200,
     message: "OK",
     data: rows,
-    meta: { total: count ?? 0, page, perPage },
+    meta: { total: count ?? 0, page, perPage, ...(s.isAdmin ? { deliverableTotal } : {}) },
   });
 }
 
@@ -321,7 +336,16 @@ export async function POST(req: Request) {
   // kampanya kaydedildi → zamanı gelmişse hemen ENKYRYS API ile gönder (ileri tarihliler beklemede kalır)
   after(() => sendOrderNow(250));
 
-  const { data: saved } = await admin.from("orders").select("status, provider_scheduled_at").eq("id", result.orderId).maybeSingle();
+  const { data: saved } = await admin
+    .from("orders")
+    .select("status, scheduled_at, created_at, provider_scheduled_at")
+    .eq("id", result.orderId)
+    .maybeSingle();
+  // panel gecikmesi (0021): "hemen gönder" kampanyası N dakika sonra sağlayıcıya gider
+  const delayMin =
+    saved && !b.scheduleAt && saved.status === "pending" && saved.scheduled_at && saved.created_at
+      ? Math.round((Date.parse(saved.scheduled_at) - Date.parse(saved.created_at)) / 60_000)
+      : 0;
 
   return accepted({
     orderId: result.orderId,
@@ -335,9 +359,14 @@ export async function POST(req: Request) {
     unitPrice: result.unitPrice,
     totalCost: result.totalCost,
     balanceAfter: result.balanceAfter,
-    scheduledAt: result.scheduledAt,
+    scheduledAt: saved?.scheduled_at ?? result.scheduledAt,
     providerScheduledAt: saved?.provider_scheduled_at ?? null,
-  }, saved?.status === "scheduled" ? "Kampanya zamanlandı." : "Kampanya oluşturuldu, gönderim başlatıldı.");
+    sendDelayMinutes: delayMin,
+  }, saved?.status === "scheduled"
+    ? "Kampanya zamanlandı."
+    : delayMin > 0
+      ? `Kampanya oluşturuldu, ${delayMin} dakika sonra gönderilecek.`
+      : "Kampanya oluşturuldu, gönderim başlatıldı.");
 }
 
 const PatchSchema = z.object({
