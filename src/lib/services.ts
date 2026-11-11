@@ -159,6 +159,43 @@ export async function manualDeliverOrder(orderId: string, actorId: string): Prom
   }
 }
 
+// Toplu manuel onay: seçilen bekleyen kampanyalar "Gönderildi" olur.
+// Uygun olmayanlar (bitmiş, bekleyen mesajı yok, bulunamadı) atlanır, diğerleri işlenir.
+export async function manualDeliverOrders(
+  orderIds: string[],
+  actorId: string
+): Promise<RpcResult<{ orders: number; messages: number; skipped: number }>> {
+  const admin = createAdminClient();
+  let orders = 0;
+  let messages = 0;
+  let skipped = 0;
+  try {
+    // tek RPC çağrısında çok büyük dizi göndermemek için parçalara bölünür
+    for (let i = 0; i < orderIds.length; i += 200) {
+      const chunk = orderIds.slice(i, i + 200);
+      const { data, error } = await admin.rpc("rpc_manual_deliver_orders", { p_order_ids: chunk, p_actor: actorId });
+      if (error) return { ok: false, error: error.message, code: 500 };
+      const d = (data ?? {}) as { orders?: number; messages?: number; skipped?: number };
+      orders += Number(d.orders ?? 0);
+      messages += Number(d.messages ?? 0);
+      skipped += Number(d.skipped ?? 0);
+    }
+    return { ok: true, data: { orders, messages, skipped } };
+  } catch (e) {
+    return { ok: false, ...mapError(e) };
+  }
+}
+
+// API kapalıyken bekleyen kampanyaları otomatik "Gönderildi" yap (auto_approve_minutes dolanlar).
+// Sağlayıcı aktifse SQL tarafı hiçbir şey yapmaz.
+export async function autoApprovePending(limit = 200): Promise<{ orders: number; messages: number }> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("rpc_auto_approve_pending", { p_limit: limit });
+  if (error) throw new Error(error.message);
+  const d = (data ?? {}) as { orders?: number; messages?: number };
+  return { orders: Number(d.orders ?? 0), messages: Number(d.messages ?? 0) };
+}
+
 // ===================== kredi işlemleri =====================
 
 export async function approveTopup(topupId: string, amount: number, note?: string): Promise<RpcResult> {
@@ -507,10 +544,11 @@ export async function runWorker(): Promise<{
   requeued: number;
   providerBalance: number | null;
   imports: number;
+  autoApproved: { orders: number; messages: number };
 }> {
   const admin = createAdminClient();
 
-  const [batch, callbacks, expired, cancelled, requeued, providerBalance, imports] = await Promise.all([
+  const [batch, callbacks, expired, cancelled, requeued, providerBalance, imports, autoApproved] = await Promise.all([
     processSendBatch(Number(process.env.WORKER_BATCH_SIZE || 250)).catch(() => ({ claimed: 0, sent: 0, failed: 0, retried: 0 })),
     processCallbacks(100).catch(() => ({ delivered: 0, failed: 0 })),
     Promise.resolve(admin.rpc("rpc_expire_topups")).then((r) => (r.data as number) ?? 0).catch(() => 0),
@@ -521,6 +559,10 @@ export async function runWorker(): Promise<{
     Promise.resolve(admin.rpc("rpc_requeue_stuck", { p_minutes: 10 })).then((r) => (r.data as number) ?? 0).catch(() => 0),
     checkProviderBalance().catch(() => null),
     processImportJobs(3).catch(() => 0),
+    // sağlayıcı API'si kapalıyken: süresi (vars. 5 dk) dolan bekleyen kampanyalar otomatik "Gönderildi"
+    hasActiveProvider()
+      .then((active) => (active ? { orders: 0, messages: 0 } : autoApprovePending(200)))
+      .catch(() => ({ orders: 0, messages: 0 })),
   ]);
 
   // kullanıcı aktivitesi: sinyali kesilen oturumları "pasif" olarak kapat
@@ -535,7 +577,7 @@ export async function runWorker(): Promise<{
     )
     .then(() => undefined, () => undefined);
 
-  return { batch, callbacks, expiredTopups: expired, cancelled, requeued, providerBalance, imports };
+  return { batch, callbacks, expiredTopups: expired, cancelled, requeued, providerBalance, imports, autoApproved };
 }
 
 // ===================== worker: içe aktarma kuyruğu =====================

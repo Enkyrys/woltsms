@@ -424,6 +424,9 @@ export interface Database {
         Args: { p_name: string | null; p_message: string; p_payload?: Json; p_draft_id?: string | null };
         Returns: Json;
       };
+      rpc_manual_deliver_order: { Args: { p_order_id: string; p_actor?: string | null }; Returns: Json };
+      rpc_manual_deliver_orders: { Args: { p_order_ids: string[]; p_actor?: string | null }; Returns: Json };
+      rpc_auto_approve_pending: { Args: { p_limit?: number }; Returns: Json };
       rpc_expire_topups: { Args: Record<string, never>; Returns: number };
       rpc_finalize_message: { Args: { p_message_id: string; p_provider_message_id?: string | null }; Returns: Json };
       rpc_refund_message: { Args: { p_message_id: string; p_reason?: string | null }; Returns: Json };
