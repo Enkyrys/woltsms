@@ -1,3 +1,17 @@
+# Değişiklik özeti — SMS fiyatı 0,40 TL, WhatsApp iletişimi kaldırıldı
+
+| Dosya | Değişiklik |
+|---|---|
+| `src/lib/site.ts` | Ana sayfa birim fiyatı **40 kuruş** (0,40 TL). Paketler: 10.000 SMS = 4.000 TL, 500.000 SMS = 200.000 TL, 1.000.000 SMS = 400.000 TL. WhatsApp numarası/bağlantısı silindi |
+| `supabase/migrations/0022_unit_price_040.sql` | YENİ — Panelin kullandığı fiyat tablosu: varsayılan **ve bayiye özel** fiyatlar 0,40; Sistem "Varsayılan Birim Fiyat" 0,40; yedek değer 1 → 0,40. Geçmiş kampanya/işlem tutarları değişmez |
+| `src/app/api/panel/admin/settings/route.ts` | Sistem > "Varsayılan Birim Fiyat" kaydedilince fiyat tablosundaki varsayılan satır da güncellenir (önceden yalnız ayar yazılıyordu, panele yansımıyordu) |
+| `src/lib/auth.ts`, `api/v1/balance`, `kullanicilar`, `sistem`, `dashboard` | Yedek/örnek fiyat 1 → 0,40; tahmini tutarda birim fiyat 2 haneli (₺0,40) |
+| `src/app/page.tsx` | WhatsApp butonu (banner), İletişim kartı, alt bilgi bağlantısı ve sağ alttaki yüzen buton kaldırıldı; İletişim'de Telegram + E-posta |
+| `src/app/kayit/page.tsx` | İletişim kutusundan WhatsApp kaldırıldı; "Telefon (WhatsApp)" → "Telefon" |
+| `src/lib/seo.ts`, `opengraph-image.tsx` | Arama motoru verisinde WhatsApp telefonu yerine e-posta |
+| `src/app/panel/admin/uyelikler/page.tsx` | Başvuranın telefonu WhatsApp yerine normal arama (tel:) bağlantısı |
+| `tests/e2e-local/e2e-worker.mts` | Bakiye beklentisi yeni fiyata göre (100 − 3 × 0,40 = 98,80) |
+
 # Değişiklik özeti — Panel SMS'leri 5 dk gecikme, API kapalıyken otomatik onay, toplu Gönder, API Aç/Kapat
 
 | Dosya | Değişiklik |

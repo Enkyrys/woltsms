@@ -86,7 +86,8 @@ check("kampanya 'completed' (Gönderildi)", q1(`select status from orders where 
 
 console.log("\nBAKİYE");
 const w = q1(`select balance||'/'||reserved from wallets where user_id='${U}'`);
-check("bakiye: 100 - 3 başarılı SMS = 97, rezerv 0", w === "97.0000/0.0000", w);
+// 0022: SMS birim fiyatı 0,40 TL → 100 - 3 × 0,40 = 98,80
+check("bakiye: 100 - 3 başarılı SMS × 0,40 = 98,80, rezerv 0", w === "98.8000/0.0000", w);
 
 console.log(`\n${failures === 0 ? "TÜM UÇTAN UCA TESTLER GEÇTİ" : failures + " TEST BAŞARISIZ"}`);
 process.exitCode = failures ? 1 : 0;
