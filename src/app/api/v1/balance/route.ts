@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     .select("unit_price")
     .eq("user_id", auth.userId)
     .maybeSingle();
-  const unit = pricing?.unit_price ?? (await admin.from("pricing").select("unit_price").is("user_id", null).maybeSingle())?.data?.unit_price ?? 1;
+  const unit = pricing?.unit_price ?? (await admin.from("pricing").select("unit_price").is("user_id", null).maybeSingle())?.data?.unit_price ?? 0.4;
 
   return applyCorsHeaders(
     Response.json({

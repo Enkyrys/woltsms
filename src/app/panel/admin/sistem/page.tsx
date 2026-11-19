@@ -420,7 +420,7 @@ export default function SistemPage() {
           <div className="grid md:grid-cols-2 gap-3 max-w-2xl">
             <Field label="Gönderim Başlangıç (SS:DD)"><input className="input" placeholder="24:00" value={sys.sending_start_hour ?? "24:00"} onChange={(e) => setSys({ ...sys, sending_start_hour: e.target.value })} /></Field>
             <Field label="Gönderim Bitiş (SS:DD)"><input className="input" placeholder="23:59" value={sys.sending_end_hour ?? "23:59"} onChange={(e) => setSys({ ...sys, sending_end_hour: e.target.value })} /></Field>
-            <Field label="Varsayılan Birim Fiyat"><input className="input" value={sys.default_unit_price || "1"} onChange={(e) => setSys({ ...sys, default_unit_price: e.target.value })} /></Field>
+            <Field label="Varsayılan Birim Fiyat"><input className="input" value={sys.default_unit_price || "0.40"} onChange={(e) => setSys({ ...sys, default_unit_price: e.target.value })} /></Field>
             <Field label="Mesaj Saklama (gün, KVKK)"><input className="input" value={sys.message_retention_days || "180"} onChange={(e) => setSys({ ...sys, message_retention_days: e.target.value })} /></Field>
             <Field label="Sipariş başına azami alıcı"><input className="input" value={sys.max_recipients_per_order || "5000"} onChange={(e) => setSys({ ...sys, max_recipients_per_order: e.target.value })} /></Field>
             <Field label="Worker parti boyutu"><input className="input" value={sys.worker_batch_size || "250"} onChange={(e) => setSys({ ...sys, worker_batch_size: e.target.value })} /></Field>

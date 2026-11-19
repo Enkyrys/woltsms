@@ -46,9 +46,6 @@ export default function KayitPage() {
       <a href={SITE.telegramUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2.5 hover:border-[#0FB5A0]">
         <span aria-hidden>✈️</span><span className="font-semibold">Telegram</span><span className="ml-auto text-slate-500">{SITE.telegramHandle}</span>
       </a>
-      <a href={SITE.whatsappUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2.5 hover:border-[#0FB5A0]">
-        <span aria-hidden>💬</span><span className="font-semibold">WhatsApp</span><span className="ml-auto text-slate-500">{SITE.whatsappNumber}</span>
-      </a>
       <a href={`mailto:${SITE.email}?subject=${encodeURIComponent("WOLTSMS üyelik")}`} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2.5 hover:border-[#0FB5A0]">
         <span aria-hidden>✉️</span><span className="font-semibold">E-posta</span><span className="ml-auto text-slate-500 truncate">{SITE.email}</span>
       </a>
@@ -89,7 +86,7 @@ export default function KayitPage() {
                     {f.username && !usernameOk && <div className="text-[11px] text-red-600 mt-1">3-32 karakter; harf, rakam, . - _</div>}
                   </div>
                   <div className="mb-4">
-                    <label className="label" htmlFor="tel">Telefon (WhatsApp)</label>
+                    <label className="label" htmlFor="tel">Telefon</label>
                     <input id="tel" className="input" value={f.phone} onChange={set("phone")} maxLength={20} inputMode="tel" autoComplete="tel" placeholder="05xx xxx xx xx" />
                   </div>
                   <div className="mb-4 sm:col-span-2">

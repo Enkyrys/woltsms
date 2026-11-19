@@ -4,7 +4,7 @@ export const alt = "WOLTSMS - Toplu SMS ve Bayi SMS Paneli";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-// Paylaşım (WhatsApp, Telegram, sosyal medya) önizleme görseli
+// Paylaşım (Telegram, sosyal medya vb.) önizleme görseli
 export default function OgImage() {
   return new ImageResponse(
     (

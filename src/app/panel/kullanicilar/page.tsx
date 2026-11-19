@@ -143,7 +143,7 @@ export default function KullanicilarPage() {
             <select className="input mb-4" value={form.roleId} onChange={(e) => setForm({ ...form, roleId: e.target.value })}>
               <option value="">Rol seçin</option>{roles.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
             </select>
-            <label className="label">Birim Fiyat (₺/segment)</label><input className="input mb-4" inputMode="decimal" value={form.unitPrice} onChange={(e) => setForm({ ...form, unitPrice: e.target.value })} placeholder={edit ? "Boş: varsayılan fiyat" : "1"} />
+            <label className="label">Birim Fiyat (₺/segment)</label><input className="input mb-4" inputMode="decimal" value={form.unitPrice} onChange={(e) => setForm({ ...form, unitPrice: e.target.value })} placeholder={edit ? "Boş: varsayılan fiyat" : "0.40"} />
             <label className="label">{edit ? "Yeni şifre (boş bırakılırsa değişmez)" : "Şifre (boş bırakılırsa otomatik üretilir)"}</label>
             <div className="flex">
               <button type="button" onClick={genPw} className="btn-green px-3 rounded-r-none" title="Güçlü şifre üret">⟳</button>

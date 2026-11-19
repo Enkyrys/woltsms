@@ -431,6 +431,14 @@ export async function POST(req: Request) {
       if (!/^\d{1,4}$/.test(t) || Number(t) > 1440) return badRequest("Dakika 0 ile 1440 arasında tam sayı olmalı.");
       value = String(Number(t));
     }
+    // varsayılan birim fiyat: panelin kullandığı fiyat tablosundaki varsayılan satır da güncellenir
+    if (key === "default_unit_price") {
+      const n = Number(value.trim().replace(",", "."));
+      if (!Number.isFinite(n) || n <= 0) return badRequest("Birim fiyat 0'dan büyük bir sayı olmalı (örn. 0.40).");
+      value = String(n);
+      const { error } = await admin.from("pricing").update({ unit_price: n }).is("user_id", null);
+      if (error) return Response.json({ success: false, code: 500, message: error.message }, { status: 500 });
+    }
     await admin
       .from("system_settings")
       .upsert({ key, value }, { onConflict: "key" });

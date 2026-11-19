@@ -93,7 +93,7 @@ export default function UyeliklerPage() {
                   <tr key={r.id} className="table-row">
                     <td><div className="font-semibold">{r.name}</div><div className="text-[11px] text-slate-500">@{r.username}</div></td>
                     <td className="text-[13px]">
-                      {r.phone && <a className="text-[#0A8F7E] font-semibold" href={`https://wa.me/${r.phone.replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer">{r.phone}</a>}
+                      {r.phone && <a className="text-[#0A8F7E] font-semibold" href={`tel:${r.phone.replace(/[^0-9+]/g, "")}`}>{r.phone}</a>}
                       {r.email && !r.email.endsWith("@woltsms.local") && <div className="text-[11px] text-slate-500">{r.email}</div>}
                     </td>
                     <td className="text-[12px] text-slate-600 max-w-[260px] whitespace-pre-wrap">{r.signupNote || "-"}</td>
