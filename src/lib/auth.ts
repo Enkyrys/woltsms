@@ -61,7 +61,7 @@ export async function loadUserWithRole(userId: string, email = ""): Promise<Sess
       .maybeSingle(),
   ]);
 
-  let unitPrice = "1";
+  let unitPrice = "0.4";
   if (pricingRows?.unit_price != null) {
     unitPrice = String(pricingRows.unit_price);
   } else {

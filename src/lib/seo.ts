@@ -81,7 +81,7 @@ export function buildJsonLd() {
       {
         "@type": "ContactPoint",
         contactType: "customer support",
-        telephone: SITE.whatsappNumber,
+        email: SITE.email,
         availableLanguage: ["Turkish"],
       },
     ],

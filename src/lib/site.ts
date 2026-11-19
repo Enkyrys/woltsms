@@ -2,12 +2,11 @@
 
 export const SITE = {
   name: "WOLTSMS",
-  // SMS başına birim fiyat (TL). 0,35 TL = 35 kuruş
-  pricePerSmsKurus: 35,
+  // SMS başına birim fiyat (TL). 0,40 TL = 40 kuruş
+  // Panelde kullanılan varsayılan birim fiyat veritabanındadır (pricing tablosu, 0022 migration'ı 0,40 yapar).
+  pricePerSmsKurus: 40,
   telegramHandle: "@WoltSmsAdmin",
   telegramUrl: "https://t.me/WoltSmsAdmin",
-  whatsappNumber: "+995558213790",
-  whatsappUrl: "https://wa.me/995558213790",
   email: "Enkyryyss@gmail.com",
 };
 
